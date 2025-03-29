@@ -1,2 +1,3 @@
-# RetroBatScraper
-A media scraper for RetroBat
+# RetroBat Scraper
+A simple media scraper for RetroBat.
+
