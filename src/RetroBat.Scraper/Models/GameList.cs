@@ -83,8 +83,15 @@ public class XmlGame
     public String? Bezel { get; set; } = String.Empty;
 
     // Game metadata
-    [XmlElement("rating")]
+    [XmlIgnore]
     public Decimal? Rating { get; set; }
+
+    [XmlElement("rating")]
+    public String? RatingString
+    {
+        get => Rating?.ToString("0.0");
+        set => Rating = XmlConverters.DeserializeDecimal(value);
+    }
 
     [XmlElement("releasedate")]
     public String? ReleaseDate { get; set; } = String.Empty;
@@ -135,17 +142,61 @@ public class XmlGame
     public String? GenreIds { get; set; } = String.Empty;
 
     // User data
+    
+    private Boolean? _favorite;
+    [XmlIgnore]
+    public Boolean? Favorite
+    {
+        get => _favorite;
+        set => _favorite = value;
+    }
+
     [XmlElement("favorite")]
-    public Boolean? Favorite { get; set; }
+    public String FavoriteString
+    {
+        get => _favorite == null ? "" : _favorite.Value ? "true" : "false";
+        set => _favorite = XmlConverters.DeserializeBoolean(value);
+    }
+
+    private Boolean? _hidden;
+    [XmlIgnore]
+    public Boolean? Hidden
+    {
+        get => _hidden;
+        set => _hidden = value;
+    }
 
     [XmlElement("hidden")]
-    public Boolean? Hidden { get; set; }
+    public String HiddenString
+    {
+        get => _hidden == null ? "" : _hidden.Value ? "true" : "false";
+        set => _hidden = XmlConverters.DeserializeBoolean(value);
+    }
+
+    private Boolean? _kidGame;
+    [XmlIgnore]
+    public Boolean? KidGame
+    {
+        get => _kidGame;
+        set => _kidGame = value;
+    }
 
     [XmlElement("kidgame")]
-    public Boolean? KidGame { get; set; }
+    public String KidGameString
+    {
+        get => _kidGame == null ? "" : _kidGame.Value ? "true" : "false";
+        set => _kidGame = XmlConverters.DeserializeBoolean(value);
+    }
+
+    [XmlIgnore]
+    private Int32? PlayCount { get; set; }
 
     [XmlElement("playcount")]
-    public Int32? PlayCount { get; set; }
+    public String? PlayCountString
+    {
+        get => PlayCount?.ToString();
+        set => PlayCount = XmlConverters.DeserializeInt32(value);
+    }
 
     [XmlElement("lastplayed")]
     public String? LastPlayed { get; set; } = String.Empty;
@@ -165,4 +216,42 @@ public class XmlGameScrap
 
     [XmlAttribute("date")]
     public String Date { get; set; } = String.Empty;
+}
+
+public static class XmlConverters
+{
+    public static Boolean DeserializeBoolean(String? value)
+    {
+        if (String.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value == "false")
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static Decimal? DeserializeDecimal(String? value)
+    {
+        if (String.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Decimal.TryParse(value, out var result) ? result : null;
+    }
+    
+    public static Int32? DeserializeInt32(String? value)
+    {
+        if (String.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Int32.TryParse(value, out var result) ? result : null;
+    }
 }

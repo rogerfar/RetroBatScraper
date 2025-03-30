@@ -211,6 +211,11 @@
                         IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBooleanConverter}}"
                         Style="{StaticResource TestButton}"
                         Margin="0,0,10,0"/>
+                <Button Content="Reset Scrape Status" 
+                        Command="{Binding ResetScrapeCommand}"
+                        IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBooleanConverter}}"
+                        Style="{StaticResource TestButton}"
+                        Margin="0,0,10,0"/>
                 <Button Content="Save" 
                         Command="{Binding SaveCommand}"
                         IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBooleanConverter}}"

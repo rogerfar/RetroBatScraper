@@ -80,7 +80,7 @@ public class FileDownloaderService
             {
                 Name = name,
                 FileName = name,
-                Url = $"{url}/${link}"
+                Url = $"{url}/{link}"
             };
 
             name = Path.GetFileNameWithoutExtension(name);

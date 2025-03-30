@@ -26,6 +26,7 @@ namespace Retrobat.RomDownloader
 
                 if (downloadExitCode != 0)
                 {
+                    Log($"Downloader exited with exit code {downloadExitCode}");
                     Environment.Exit(downloadExitCode);
                 }
 
@@ -33,13 +34,15 @@ namespace Retrobat.RomDownloader
 
                 if (gameExitCode != 0)
                 {
+                    Log($"Startgame exited with exit code {downloadExitCode}");
                     Environment.Exit(gameExitCode);
                 }
 
                 Environment.Exit(0);
             }
-            catch
+            catch (Exception ex)
             {
+                Log($"{ex.Message}");
                 Environment.Exit(1);
             }
         }
@@ -50,6 +53,7 @@ namespace Retrobat.RomDownloader
 
             if (String.IsNullOrWhiteSpace(fileName))
             {
+                Log($"Cannot find rom file path in argument 'rom'");
                 return 2;
             }
 
@@ -59,9 +63,10 @@ namespace Retrobat.RomDownloader
 
             if (!fileInfo.Exists)
             {
+                Log($"Cannot find rom file {fileName}");
                 return 3;
             }
-            
+
             if (fileInfo.Length < 1024 && fileInfo.Extension == ".zip")
             {
                 var contents = File.ReadAllText(fileName);
@@ -69,6 +74,8 @@ namespace Retrobat.RomDownloader
 
                 if (!contents.StartsWith("http"))
                 {
+                    Log($"Rom does not contain a valid URL");
+
                     return 0;
                 }
 
@@ -77,9 +84,30 @@ namespace Retrobat.RomDownloader
                 var fileDownloader = new FileDownloader();
                 fileDownloader.ProgressChanged += downloadWindow.FileDownloaderProgressChanged;
 
+                Log($"Downloading rom file from {contents} to {fileName}");
+
                 downloadWindow.Show();
-                await fileDownloader.DownloadFileAsync(contents, fileName);
+
+                try
+                {
+                    await fileDownloader.DownloadFileAsync(contents, fileName);
+                }
+                catch (Exception ex)
+                {
+                    Log(ex.Message);
+                }
+
                 downloadWindow.Close();
+
+                if (!File.Exists(fileName))
+                {
+                    Log($"Downloaded rom file does not exist");
+                    return 4;
+                }
+            }
+            else
+            {
+                Log($"Not downloading rom file, size is {fileInfo.Length} and extension is {fileInfo.Extension}");
             }
 
             return 0;
@@ -87,6 +115,8 @@ namespace Retrobat.RomDownloader
 
         private static Int32 StartGame(String arguments)
         {
+            Log($"Starting executable emulatorLauncher_original.exe with arguments");
+
             var process = new Process();
             process.StartInfo.FileName = "emulatorLauncher_original.exe";
             process.StartInfo.Arguments = arguments;

@@ -123,6 +123,7 @@ public class ScreenScraperService
         if (maxThreads < 1)
         {
             await GetUserInfo(false);
+            maxThreads = _userInfo?.MaxThreads ?? 1;
         }
         
         var tasks = new List<Task>();
@@ -324,7 +325,6 @@ public class ScreenScraperService
 
                     game.ScreenScraperId = gameResult.Id;
                     game.Name = (gameResult.Names.FirstOrDefault(m => m.Region == "ss") ?? gameResult.Names.FirstOrDefault(m => m.Region == "us") ?? gameResult.Names.First()).Text;
-                    gameResult.Media = [];
                     game.ScreenScraperData = JsonSerializer.Serialize(gameResult);
 
                     await dbContext.SaveChangesAsync(cancellationToken);
@@ -345,17 +345,16 @@ public class ScreenScraperService
                 });
 
                 status.Reset("Downloading title image");
-
-                await GetImage(_client, game, "title", "sstitle", null, progress);
+                //await GetImage(_client, game, "title", "sstitle", null, progress);
 
                 status.Reset("Downloading wheel image");
-                await GetImage(_client, game, "marquee", "wheel", "wheel-hd", progress);
+                //await GetImage(_client, game, "marquee", "wheel", "wheel-hd", progress);
 
                 status.Reset("Downloading box image");
-                await GetImage(_client, game, "thumb", "box-2D", null, progress);
+                //await GetImage(_client, game, "thumb", "box-2D", null, progress);
 
                 status.Reset("Downloading video");
-                await GetVideo(_client, game, "video", "video-normalized", progress);
+                //await GetVideo(_client, game, "video", "video-normalized", progress);
 
                 status.Reset("Finished");
 

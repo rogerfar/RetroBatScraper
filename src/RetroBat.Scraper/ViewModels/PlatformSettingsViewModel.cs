@@ -176,8 +176,6 @@ public partial class PlatformSettingsViewModel : ObservableObject
     {
         var gameLinks = await _fileDownloaderService.GetGames(Url);
 
-        await _dbContext.Games.Where(m => m.PlatformId == _platform.PlatformId).ExecuteDeleteAsync();
-
         foreach (var gameLink in gameLinks)
         {
             var game = await _dbContext.Games.FirstOrDefaultAsync(m => m.PlatformId == _platform.PlatformId && m.FileNameWithExtension == gameLink.FileName);
@@ -222,6 +220,8 @@ public partial class PlatformSettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateFakeGames()
     {
+        IsSaving = true;
+
         foreach (var game in Games)
         {
             if (game.IsSelected && game.Url != null)
@@ -229,6 +229,24 @@ public partial class PlatformSettingsViewModel : ObservableObject
                 await _fileDownloaderService.DownloadFakeGames(game.FileNameWithoutExtension, game.Url, Path);
             }
         }
+
+        IsSaving = false;
+    }
+
+    [RelayCommand]
+    private async Task ResetScrape()
+    {
+        var allGames = await _dbContext.Games.Where(m => m.PlatformId == _platform.PlatformId).ToListAsync();
+
+        foreach (var game in allGames)
+        {
+            game.ScrapeStatus = GameScrapeStatus.NotScraped;
+            game.ScreenScraperData = null;
+            game.ScrapeResult = null;
+            game.ScreenScraperId = null;
+        }
+
+        await _dbContext.SaveChangesAsync();
     }
 
     [RelayCommand]
