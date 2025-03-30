@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -317,6 +318,19 @@ public partial class PlatformSettingsViewModel : ObservableObject
         foreach (var game in Games)
         {
             game.IsSelected = false;
+        }
+
+        UpdateStatusText();
+    }
+
+    [RelayCommand]
+    private void SyncWithFolder()
+    {
+        var files = Directory.GetFiles(Path, "*.*", SearchOption.AllDirectories).Select(System.IO.Path.GetFileNameWithoutExtension).ToList();
+
+        foreach (var game in Games)
+        {
+            game.IsSelected = files.Contains(game.FileNameWithoutExtension);
         }
 
         UpdateStatusText();

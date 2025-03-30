@@ -4,21 +4,24 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RetroBatScraper.Models;
 using RetroBatScraper.ViewModels;
+using Serilog;
 
 namespace RetroBatScraper.Services;
 
 public class ScreenScraperService
 {
+    private static readonly SemaphoreSlim Semaphore = new(1, 1);
+
     private readonly GameListXmlService _gameListXmlService;
     private readonly SettingsService _settingsService;
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
-    private readonly ScreenScraperFR.ScreenScraperFRClient _client;
+    private readonly ScreenScraperFR.ScreenScraperFRClient? _client;
 
     public List<ScreenScraperFR.Platform> Platforms { get; private set; } = [];
 
-    private static readonly SemaphoreSlim Semaphore = new(1, 1);
-
     private UserInfoViewModel? _userInfo;
+
+    private Queue<Guid> _gameQueue = [];
 
     public ScreenScraperService(GameListXmlService gameListXmlService, SettingsService settingsService, IDbContextFactory<ApplicationDbContext> dbContextFactory)
     {
@@ -38,40 +41,40 @@ public class ScreenScraperService
         return _userInfo;
     }
 
-    public async Task<UserInfoViewModel?> GetUserInfo()
+    public async Task<UserInfoViewModel?> GetUserInfo(Boolean cache = true)
     {
-        var userInfo = await _client.GetUserInfo();
+        if (_client == null)
+        {
+            return null;
+        }
+
+        var userInfo = await _client.GetUserInfo(cache);
 
         if (userInfo != null)
         {
-            if (_userInfo == null)
-            {
-                _userInfo = new();
-            }
-            else
-            {
-                _userInfo.Username = userInfo.Username;
-                _userInfo.UserId = userInfo.UserId;
-                _userInfo.UserLevel = userInfo.UserLevel;
-                _userInfo.ContributionLevel = userInfo.ContributionLevel;
-                _userInfo.PlatformMediaUploads = userInfo.PlatformMediaUploads;
-                _userInfo.InfoTextUploads = userInfo.InfoTextUploads;
-                _userInfo.RomAssociations = userInfo.RomAssociations;
-                _userInfo.GameMediaUploads = userInfo.GameMediaUploads;
-                _userInfo.ApprovedProposals = userInfo.ApprovedProposals;
-                _userInfo.RejectedProposals = userInfo.RejectedProposals;
-                _userInfo.RejectionRate = userInfo.RejectionRate;
-                _userInfo.MaxThreads = userInfo.MaxThreads;
-                _userInfo.MaxDownloadSpeed = userInfo.MaxDownloadSpeed;
-                _userInfo.RequestsToday = userInfo.RequestsToday;
-                _userInfo.FailedRequestsToday = userInfo.FailedRequestsToday;
-                _userInfo.MaxRequestsPerMinute = userInfo.MaxRequestsPerMinute;
-                _userInfo.MaxRequestsPerDay = userInfo.MaxRequestsPerDay;
-                _userInfo.MaxFailedRequestsPerDay = userInfo.MaxFailedRequestsPerDay;
-                _userInfo.VisitCount = userInfo.VisitCount;
-                _userInfo.LastVisitDate = userInfo.LastVisitDate;
-                _userInfo.FavoriteRegion = userInfo.FavoriteRegion;
-            }
+            _userInfo ??= new();
+
+            _userInfo.Username = userInfo.Username;
+            _userInfo.UserId = userInfo.UserId;
+            _userInfo.UserLevel = userInfo.UserLevel;
+            _userInfo.ContributionLevel = userInfo.ContributionLevel;
+            _userInfo.PlatformMediaUploads = userInfo.PlatformMediaUploads;
+            _userInfo.InfoTextUploads = userInfo.InfoTextUploads;
+            _userInfo.RomAssociations = userInfo.RomAssociations;
+            _userInfo.GameMediaUploads = userInfo.GameMediaUploads;
+            _userInfo.ApprovedProposals = userInfo.ApprovedProposals;
+            _userInfo.RejectedProposals = userInfo.RejectedProposals;
+            _userInfo.RejectionRate = userInfo.RejectionRate;
+            _userInfo.MaxThreads = userInfo.MaxThreads;
+            _userInfo.MaxDownloadSpeed = userInfo.MaxDownloadSpeed;
+            _userInfo.RequestsToday = userInfo.RequestsToday;
+            _userInfo.FailedRequestsToday = userInfo.FailedRequestsToday;
+            _userInfo.MaxRequestsPerMinute = userInfo.MaxRequestsPerMinute;
+            _userInfo.MaxRequestsPerDay = userInfo.MaxRequestsPerDay;
+            _userInfo.MaxFailedRequestsPerDay = userInfo.MaxFailedRequestsPerDay;
+            _userInfo.VisitCount = userInfo.VisitCount;
+            _userInfo.LastVisitDate = userInfo.LastVisitDate;
+            _userInfo.FavoriteRegion = userInfo.FavoriteRegion;
         }
 
         return _userInfo;
@@ -86,7 +89,7 @@ public class ScreenScraperService
             var platformsJson = await File.ReadAllTextAsync("platforms.json");
             Platforms = JsonSerializer.Deserialize<List<ScreenScraperFR.Platform>>(platformsJson)!;
         }
-        else
+        else if (_client != null)
         {
             Platforms = await _client.GetPlatforms();
 
@@ -98,6 +101,11 @@ public class ScreenScraperService
 
     public async Task<ScreenScraperFR.Platform?> GetPlatform(Int32 platformId)
     {
+        if (_client == null)
+        {
+            return null;
+        }
+
         var platforms = await _client.GetPlatforms();
 
         return platforms.FirstOrDefault(m => m.Id == platformId);
@@ -105,21 +113,34 @@ public class ScreenScraperService
 
     public async Task StartScraping(IProgress<List<ScrapeStatus>> progress, CancellationToken cancellationToken)
     {
-        var maxThreads = _userInfo!.MaxThreads;
+        if (_client == null)
+        {
+            return;
+        }
+
+        var maxThreads = _userInfo?.MaxThreads ?? 1;
+
+        if (maxThreads < 1)
+        {
+            await GetUserInfo(false);
+        }
         
         var tasks = new List<Task>();
         var statuses = Enumerable.Range(1, maxThreads)
                                  .Select(i => new ScrapeStatus { ThreadId = i })
                                  .ToList();
 
-        var running = true;
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var games = await dbContext.Games.Where(m => m.IsSelected).OrderBy(m => m.Name).Select(m => m.GameId).ToListAsync(cancellationToken);
+        _gameQueue = new(games);
 
         _ = Task.Run(async () =>
         {
-            while (!cancellationToken.IsCancellationRequested && running)
+            while (!cancellationToken.IsCancellationRequested && _gameQueue.TryPeek(out _))
             {
                 progress.Report(statuses);
-                await Task.Delay(100, CancellationToken.None);
+                await Task.Delay(10, CancellationToken.None);
             }
         }, cancellationToken);
 
@@ -160,43 +181,42 @@ public class ScreenScraperService
 
         await Task.WhenAll(tasks);
 
-        running = false;
-
         progress.Report(statuses);
     }
 
-    private ScreenScraperFR.ScreenScraperFRClient GetClient()
+    private ScreenScraperFR.ScreenScraperFRClient? GetClient()
     {
         var devId = _settingsService.GetSetting("ScreenScraperDevId") ?? String.Empty;
         var devPass = _settingsService.GetSetting("ScreenScraperDevPassword") ?? String.Empty;
         var userName = _settingsService.GetSetting("ScreenScraperUserName") ?? String.Empty;
         var userPass = _settingsService.GetSetting("ScreenScraperUserPassword") ?? String.Empty;
 
+        if (String.IsNullOrWhiteSpace(devId) || String.IsNullOrWhiteSpace(devPass))
+        {
+            return null;
+        }
+
         return new("RetroBatScraper", devId, devPass, userName, userPass);
     }
 
     private async Task<Boolean> ScrapeNextGame(ScrapeStatus status, CancellationToken cancellationToken)
     {
+        if (_client == null)
+        {
+            return false;
+        }
+
         status.IsActive = true;
         status.CurrentGame = "";
         status.Status = "Fetching next game...";
 
         await Semaphore.WaitAsync(cancellationToken);
 
-        var shouldScrapeGame = true;
-        String gameListPath;
         Guid gameId;
 
         try
         {
-            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-            var game = await dbContext.Games
-                                      .Include(m => m.Platform)
-                                      .OrderBy(m => m.Name)
-                                      .FirstOrDefaultAsync(m => m.IsSelected && m.ScrapeStatus == GameScrapeStatus.NotScraped, cancellationToken);
-
-            if (game == null)
+            if (!_gameQueue.TryDequeue(out gameId))
             {
                 status.IsActive = false;
                 status.CurrentGame = "";
@@ -205,33 +225,18 @@ public class ScreenScraperService
                 return false;
             }
 
-            gameId = game.GameId;
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+            var game = await dbContext.Games
+                                      .Include(m => m.Platform)
+                                      .FirstAsync(m => m.GameId == gameId, cancellationToken);
 
             game.ScrapeStatus = GameScrapeStatus.InProgress;
 
+            status.CurrentGame = $"{game.Name} ({game.Platform!.Name})";
+            status.IsActive = true;
+
             await dbContext.SaveChangesAsync(cancellationToken);
-
-            gameListPath = Path.Combine(game.Platform!.Path, "gamelist.xml");
-
-            if (File.Exists(gameListPath))
-            {
-                var gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
-
-                var gameListGame = gameList.Games.FirstOrDefault(m => m.Id == game.ScreenScraperId.ToString()
-                                                                      || m.Path == $"./{game.FileNameWithExtension}");
-
-                if (gameListGame != null)
-                {
-                    shouldScrapeGame = false;
-
-                    if (game.ScreenScraperId == null)
-                    {
-                        game.ScreenScraperId = Int32.Parse(gameListGame.Id);
-
-                        await dbContext.SaveChangesAsync(cancellationToken);
-                    }
-                }
-            }
         }
         finally
         {
@@ -240,71 +245,90 @@ public class ScreenScraperService
 
         try
         {
-            if (shouldScrapeGame)
+            await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken))
             {
-                await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-
                 var game = await dbContext.Games.Include(m => m.Platform!).FirstAsync(m => m.GameId == gameId, cancellationToken);
 
-                status.IsActive = true;
-                status.CurrentGame = $"{game.Name} ({game.Platform!.Name})";
-                status.Status = $"Searching for {game.Name}";
-
-                var gameResult = await _client.GetGame(game.Platform!.ScreenScraperId!.Value, "rom", game.FileNameWithExtension, cancellationToken: cancellationToken);
-
-                if (gameResult == null)
+                if (game.ScreenScraperData == null)
                 {
-                    var results = await _client.SearchGames(game.Name, game.Platform!.ScreenScraperId, cancellationToken);
-                    gameResult = results.FirstOrDefault();
-                }
+                    status.Status = $"Searching for {game.Name}";
 
-                if (gameResult == null)
-                {
-                    var shortName = game.Name.Split(" ")[0];
+                    var gameResult = await _client.GetGame(game.Platform!.ScreenScraperId!.Value, "rom", game.FileNameWithExtension, cancellationToken: cancellationToken);
 
-                    status.Status = $"No match, searching for {shortName}";
-                    
-                    var results = await _client.SearchGames(shortName, game.Platform!.ScreenScraperId, cancellationToken);
-
-                    ScreenScraperFR.Game? bestMatch = null;
-                    Int32? bestMatchScore = null;
-
-                    foreach (var result in results)
+                    if (gameResult == null)
                     {
-                        foreach (var resultName in result.Names)
-                        {
-                            var levenshteinDistance = Fastenshtein.Levenshtein.Distance(game.Name, resultName.Text);
+                        var results = await _client.SearchGames(game.Name, game.Platform!.ScreenScraperId, cancellationToken);
+                        gameResult = results.FirstOrDefault();
+                    }
+                    else
+                    {
+                        var screenScraperName = gameResult.Names.FirstOrDefault(m => m.Region == "ss")?.Text;
 
-                            if (bestMatch == null || levenshteinDistance < bestMatchScore)
+                        status.Status = $"Downloading metadata";
+
+                        if (!String.IsNullOrWhiteSpace(screenScraperName))
+                        {
+                            var results = await _client.SearchGames(screenScraperName, game.Platform!.ScreenScraperId, cancellationToken);
+
+                            if (results.Count == 1)
                             {
-                                bestMatch = result;
-                                bestMatchScore = levenshteinDistance;
+                                gameResult = results.FirstOrDefault();
+                            }
+                            else
+                            {
+                                gameResult = results.FirstOrDefault(m => m.Names.FirstOrDefault(p => p.Region == "ss")?.Text == screenScraperName);
                             }
                         }
                     }
 
-                    if (bestMatch != null)
+                    if (gameResult == null)
                     {
-                        gameResult = bestMatch;
+                        var shortName = game.Name.Split(" ")[0];
+
+                        status.Status = $"No match, searching for {shortName}";
+
+                        var results = await _client.SearchGames(shortName, game.Platform!.ScreenScraperId, cancellationToken);
+
+                        ScreenScraperFR.Game? bestMatch = null;
+                        Int32? bestMatchScore = null;
+
+                        foreach (var result in results)
+                        {
+                            foreach (var resultName in result.Names)
+                            {
+                                var levenshteinDistance = Fastenshtein.Levenshtein.Distance(game.Name, resultName.Text);
+
+                                if (bestMatch == null || levenshteinDistance < bestMatchScore)
+                                {
+                                    bestMatch = result;
+                                    bestMatchScore = levenshteinDistance;
+                                }
+                            }
+                        }
+
+                        if (bestMatch != null)
+                        {
+                            gameResult = bestMatch;
+                        }
                     }
-                }
 
-                if (gameResult == null)
-                {
-                    status.Status = "Not found";
+                    if (gameResult == null)
+                    {
+                        status.Status = "Not found";
 
-                    game.ScrapeStatus = GameScrapeStatus.NotFound;
+                        game.ScrapeStatus = GameScrapeStatus.NotFound;
+                        await dbContext.SaveChangesAsync(cancellationToken);
+
+                        return true;
+                    }
+
+                    game.ScreenScraperId = gameResult.Id;
+                    game.Name = (gameResult.Names.FirstOrDefault(m => m.Region == "ss") ?? gameResult.Names.FirstOrDefault(m => m.Region == "us") ?? gameResult.Names.First()).Text;
+                    gameResult.Media = [];
+                    game.ScreenScraperData = JsonSerializer.Serialize(gameResult);
+
                     await dbContext.SaveChangesAsync(cancellationToken);
-
-                    return true;
                 }
-
-                game.ScreenScraperId = gameResult.Id;
-                game.Name = (gameResult.Names.FirstOrDefault(m => m.Region == "ss") ?? gameResult.Names.FirstOrDefault(m => m.Region == "us") ?? gameResult.Names.First()).Text;
-                gameResult.Media = [];
-                game.ScreenScraperData = JsonSerializer.Serialize(gameResult);
-
-                await dbContext.SaveChangesAsync(cancellationToken);
             }
 
             await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken))
@@ -321,13 +345,14 @@ public class ScreenScraperService
                 });
 
                 status.Reset("Downloading title image");
-                await GetImage(_client, game, "title", "sstitle", progress);
+
+                await GetImage(_client, game, "title", "sstitle", null, progress);
 
                 status.Reset("Downloading wheel image");
-                await GetImage(_client, game, "marquee", "wheel", progress);
+                await GetImage(_client, game, "marquee", "wheel", "wheel-hd", progress);
 
                 status.Reset("Downloading box image");
-                await GetImage(_client, game, "thumb", "box-2D", progress);
+                await GetImage(_client, game, "thumb", "box-2D", null, progress);
 
                 status.Reset("Downloading video");
                 await GetVideo(_client, game, "video", "video-normalized", progress);
@@ -346,7 +371,7 @@ public class ScreenScraperService
 
                 var game = await dbContext.Games.Include(m => m.Platform!).FirstAsync(m => m.GameId == gameId, cancellationToken);
 
-                status.Status = "Adding to gamelist.xml";
+                status.Status = "Updating gamelist.xml";
 
                 if (game.ScreenScraperData != null)
                 {
@@ -377,53 +402,66 @@ public class ScreenScraperService
                         thumbFileName = null;
                     }
 
-                    Decimal? rating = data.Rating?.Text != null ? (Decimal.Parse(data.Rating.Text) / 100) : null;
+                    Decimal? rating = data.Rating?.Text != null ? Math.Round(Decimal.Parse(data.Rating.Text) / 20.0m, 2) : null;
 
                     var romFilePath = Path.Combine(game.Platform!.Path, game.FileNameWithExtension);
-
-                    var xmlGame = new XmlGame
-                    {
-                        Id = game.ScreenScraperId!.Value.ToString(),
-                        Path = $"./{game.FileNameWithExtension}",
-                        Name = game.Name,
-                        Description = data.Synopsis.FirstOrDefault(m => m.Language == "en")?.Text,
-                        Image = imageFileName,
-                        Video = videoFileName,
-                        Marquee = marqueeFileName,
-                        Thumbnail = thumbFileName,
-                        Rating = rating,
-                        ReleaseDate = (data.ReleaseDates.FirstOrDefault(m => m.Region == "us") ?? data.ReleaseDates.FirstOrDefault())?.Text,
-                        Developer = data.Developer?.Name,
-                        Publisher = data.Publisher?.Name,
-                        Genre = data.Genres.FirstOrDefault(m => m.IsPrimary)?.Names.FirstOrDefault(m => m.Language == "en")?.Text,
-                        Family = data.Series.FirstOrDefault()?.Names.FirstOrDefault(m => m.Language == "en")?.Text,
-                        Players = data.PlayerCount?.Text,
-                        Md5 = await CreateMd5(romFilePath),
-                        Language = data.Rom?.Languages?.En.FirstOrDefault(),
-                        Scrap = new()
-                        {
-                            Name = "ScreenScraper",
-                            Date = $"{DateTime.Now:yyyyMMdd}T{DateTime.Now:HHmmss}"
-                        }
-                    };
+                    
+                    var gameListPath = Path.Combine(game.Platform!.Path, "gamelist.xml");
 
                     if (!File.Exists(gameListPath))
                     {
                         await _gameListXmlService.WriteGameListAsync(gameListPath,
-                                                                    new()
-                                                                    {
-                                                                        Games = [xmlGame]
-                                                                    });
+                                                                     new()
+                                                                     {
+                                                                         Games = []
+                                                                     });
                     }
-                    else
+
+                    var gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
+
+                    var xmlPath = $"./{game.FileNameWithExtension}";
+                    var xmlId = game.ScreenScraperId!.Value.ToString();
+
+                    var xmlGame = gameList.Games.FirstOrDefault(m => m.Path == xmlPath || m.Id == xmlId);
+
+                    if (xmlGame == null)
                     {
-                        var gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
+                        xmlGame = new()
+                        {
+                            Id = xmlId
+                        };
 
                         gameList.Games.Add(xmlGame);
-                        gameList.Games = [.. gameList.Games.OrderBy(m => m.Path)];
-
-                        await _gameListXmlService.WriteGameListAsync(gameListPath, gameList);
                     }
+                    
+                    xmlGame.Source = "ScreenScraper.fr";
+                    xmlGame.Path = xmlPath;
+                    xmlGame.Name = game.Name;
+                    xmlGame.Description = data.Synopsis.FirstOrDefault(m => m.Language == "en")?.Text;
+                    xmlGame.Image = imageFileName;
+                    xmlGame.Video = videoFileName;
+                    xmlGame.Marquee = marqueeFileName;
+                    xmlGame.Thumbnail = thumbFileName;
+                    xmlGame.Rating = rating;
+                    xmlGame.ReleaseDate = (data.ReleaseDates.FirstOrDefault(m => m.Region == "us") ?? data.ReleaseDates.FirstOrDefault())?.Text;
+                    xmlGame.Developer = data.Developer?.Name;
+                    xmlGame.Publisher = data.Publisher?.Name;
+                    xmlGame.Genre = data.Genres.FirstOrDefault(m => m.IsPrimary)?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
+                    xmlGame.Family = data.Series.FirstOrDefault()?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
+                    xmlGame.Players = data.PlayerCount?.Text;
+                    xmlGame.Md5 = await CreateMd5(romFilePath);
+                    xmlGame.Language = data.Rom?.Languages?.En.FirstOrDefault();
+                    xmlGame.Region = data.Rom?.Regions?.En.FirstOrDefault();
+
+                    xmlGame.Scrap = new()
+                    {
+                        Name = "ScreenScraper",
+                        Date = $"{DateTime.Now:yyyyMMdd}T{DateTime.Now:HHmmss}"
+                    };
+
+                    gameList.Games = [.. gameList.Games.OrderBy(m => m.Path)];
+
+                    await _gameListXmlService.WriteGameListAsync(gameListPath, gameList);
                 }
             }
             finally
@@ -433,6 +471,8 @@ public class ScreenScraperService
         }
         catch (Exception ex)
         {
+            Log.Error(ex, $"Error scraping {gameId}: {ex.Message}");
+
             status.Status = "Error!";
 
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -446,7 +486,7 @@ public class ScreenScraperService
         return true;
     }
 
-    private static async Task GetImage(ScreenScraperFR.ScreenScraperFRClient client, Game game, String fileName, String type, EventHandler<ScreenScraperFR.DownloadProgressEventArgs> progressEvent)
+    private static async Task GetImage(ScreenScraperFR.ScreenScraperFRClient client, Game game, String fileName, String type, String? fallbackType, EventHandler<ScreenScraperFR.DownloadProgressEventArgs> progressEvent)
     {
         var regionOrder = new List<String>
         {
@@ -467,14 +507,34 @@ public class ScreenScraperService
 
         outputPath = Path.Combine(outputPath, fileName);
 
+        if (File.Exists(outputPath))
+        {
+            return;
+        }
+
         foreach (var region in regionOrder)
         {
-            if (File.Exists(outputPath))
-            {
-                return;
-            }
+            var result = await client.GetGameImage(game.Platform!.ScreenScraperId!.Value, game.ScreenScraperId!.Value, $"{type}({region})", outputPath, progressEvent: progressEvent);
 
-            await client.GetGameImage(game.Platform!.ScreenScraperId!.Value, game.ScreenScraperId!.Value, $"{type}({region})", outputPath, progressEvent: progressEvent);
+            if (result == ScreenScraperFR.MediaResponse.Ok)
+            {
+                break;
+            }
+        }
+
+        if (File.Exists(outputPath))
+        {
+            return;
+        }
+
+        foreach (var region in regionOrder)
+        {
+            var result = await client.GetGameImage(game.Platform!.ScreenScraperId!.Value, game.ScreenScraperId!.Value, $"{fallbackType}({region})", outputPath, progressEvent: progressEvent);
+
+            if (result == ScreenScraperFR.MediaResponse.Ok)
+            {
+                break;
+            }
         }
     }
 

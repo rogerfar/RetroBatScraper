@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RetroBatScraper.Services;
 using RetroBatScraper.ViewModels;
 using RetroBatScraper.Views;
+using Serilog;
 
 namespace RetroBatScraper;
 
@@ -21,6 +22,11 @@ public partial class App
         {
             options.UseSqlite("Data Source=app.db");
         });
+
+        Log.Logger = new LoggerConfiguration()
+                     .MinimumLevel.Debug()
+                     .WriteTo.File("logs.txt", rollOnFileSizeLimit: true)
+                     .CreateLogger();
 
         services.AddSingleton<FileDownloaderService>();
         services.AddSingleton<GameListXmlService>();
@@ -71,6 +77,7 @@ public partial class App
         }
         catch (Exception ex)
         {
+            Log.Error(ex, ex.Message);
             MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown();
         }

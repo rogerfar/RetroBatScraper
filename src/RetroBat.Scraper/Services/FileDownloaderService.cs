@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Web;
 using RetroBatScraper.Models;
 
 namespace RetroBatScraper.Services;
@@ -73,6 +74,8 @@ public class FileDownloaderService
                 continue;
             }
 
+            name = HttpUtility.HtmlDecode(name);
+            
             var newGame = new GameLink
             {
                 Name = name,
@@ -116,6 +119,11 @@ public class FileDownloaderService
                 }
             }
 
+            while (name.Contains("  "))
+            {
+                name = name.Replace("  ", " ");
+            }
+            
             newGame.Name = name.Trim();
             newGame.Languages = newGame.Languages.Distinct().OrderBy(m => m).ToList();
             newGame.Regions = newGame.Regions.Distinct().OrderBy(m => m).ToList();

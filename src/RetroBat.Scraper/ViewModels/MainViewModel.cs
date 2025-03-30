@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using RetroBatScraper.Views;
-using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using RetroBatScraper.Models;
 using RetroBatScraper.Services;
@@ -28,7 +27,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
     public async Task Initialize()
     {
-        var platforms = await dbContext.Platforms.Include(m => m.Games).OrderBy(p => p.Names[0]).Select(m => new PlatformViewModel(m)
+        var platforms = await dbContext.Platforms.OrderBy(p => p.Names[0]).Select(m => new PlatformViewModel(m)
         {
             CountTotalGames = m.Games!.Count,
             CountSelectedGames = m.Games!.Count(g => g.IsSelected),
@@ -118,8 +117,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
         var window = new SettingsWindow
         {
-            DataContext = settingsViewModel,
-            Owner = Application.Current.MainWindow
+            DataContext = settingsViewModel
         };
     
         settingsViewModel.SetWindow(window);
@@ -134,8 +132,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
         var window = new PlatformSettingsWindow
         {
-            DataContext = platformVm,
-            Owner = Application.Current.MainWindow
+            DataContext = platformVm
         };
 
         platformVm.SetWindow(window);
@@ -151,8 +148,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
         
         var window = new PlatformSettingsWindow
         {
-            DataContext = platformVm,
-            Owner = Application.Current.MainWindow
+            DataContext = platformVm
         };
 
         platformVm.SetWindow(window);

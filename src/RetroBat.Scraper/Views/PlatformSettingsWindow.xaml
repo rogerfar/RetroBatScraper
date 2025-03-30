@@ -126,6 +126,10 @@
                             Command="{Binding DataContext.UncheckAllCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding}"
                             Margin="5,0,5,5" />
+                    <Button Content="Sync with roms path"
+                            Command="{Binding DataContext.SyncWithFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}"
+                            Margin="5,0,5,5" />
                     <Button Content="Unique"
                             Command="{Binding DataContext.UniqueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding}"
