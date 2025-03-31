@@ -4,9 +4,17 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Download" Background="Black">
-    <StackPanel>
+        Title="Download" 
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowState="Maximized"
+        WindowStyle="None"
+        Topmost="True"
+        >
+    <StackPanel VerticalAlignment="Center">
         <Label Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">Downloading...</Label>
-        <Label Name="Progress" Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">0%</Label>
+        <Label Name="Progress" Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"></Label>
+        <Label Name="Speed" Foreground="AliceBlue" FontSize="30" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"></Label>
     </StackPanel>
 </Window>

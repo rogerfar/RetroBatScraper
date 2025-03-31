@@ -125,7 +125,11 @@ public class ScreenScraperService
             await GetUserInfo(false);
             maxThreads = _userInfo?.MaxThreads ?? 1;
         }
-        
+
+#if DEBUG
+        maxThreads = 1;
+#endif
+
         var tasks = new List<Task>();
         var statuses = Enumerable.Range(1, maxThreads)
                                  .Select(i => new ScrapeStatus { ThreadId = i })
@@ -133,7 +137,7 @@ public class ScreenScraperService
 
         await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var games = await dbContext.Games.Where(m => m.IsSelected).OrderBy(m => m.Name).Select(m => m.GameId).ToListAsync(cancellationToken);
+        var games = await dbContext.Games.Where(m => m.IsSelected && m.ScrapeStatus != GameScrapeStatus.Success).OrderBy(m => m.Name).Select(m => m.GameId).ToListAsync(cancellationToken);
         _gameQueue = new(games);
 
         _ = Task.Run(async () =>
@@ -261,7 +265,7 @@ public class ScreenScraperService
                         var results = await _client.SearchGames(game.Name, game.Platform!.ScreenScraperId, cancellationToken);
                         gameResult = results.FirstOrDefault();
                     }
-                    else
+                    /*else
                     {
                         var screenScraperName = gameResult.Names.FirstOrDefault(m => m.Region == "ss")?.Text;
 
@@ -280,11 +284,22 @@ public class ScreenScraperService
                                 gameResult = results.FirstOrDefault(m => m.Names.FirstOrDefault(p => p.Region == "ss")?.Text == screenScraperName);
                             }
                         }
-                    }
+                    }*/
 
                     if (gameResult == null)
                     {
-                        var shortName = game.Name.Split(" ")[0];
+                        var splitNames = game.Name.Split(" ");
+
+                        var shortName = "";
+                        foreach (var t in splitNames)
+                        {
+                            shortName += " " + t;
+
+                            if (shortName.Length > 3)
+                            {
+                                break;
+                            }
+                        }
 
                         status.Status = $"No match, searching for {shortName}";
 
@@ -345,16 +360,16 @@ public class ScreenScraperService
                 });
 
                 status.Reset("Downloading title image");
-                //await GetImage(_client, game, "title", "sstitle", null, progress);
+                await GetImage(_client, game, "title", "sstitle", null, progress);
 
                 status.Reset("Downloading wheel image");
-                //await GetImage(_client, game, "marquee", "wheel", "wheel-hd", progress);
+                await GetImage(_client, game, "marquee", "wheel", "wheel-hd", progress);
 
                 status.Reset("Downloading box image");
-                //await GetImage(_client, game, "thumb", "box-2D", null, progress);
+                await GetImage(_client, game, "thumb", "box-2D", null, progress);
 
                 status.Reset("Downloading video");
-                //await GetVideo(_client, game, "video", "video-normalized", progress);
+                await GetVideo(_client, game, "video", "video-normalized", progress);
 
                 status.Reset("Finished");
 
