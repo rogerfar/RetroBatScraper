@@ -1,10 +1,10 @@
-﻿<Window x:Class="RetroBatScraper.Views.PlatformSettingsWindow"
+﻿<Window x:Class="RetroBat.Scraper.Views.PlatformSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:viewModels="clr-namespace:RetroBatScraper.ViewModels"
-        xmlns:models="clr-namespace:RetroBatScraper.Models"
+        xmlns:viewModels="clr-namespace:RetroBat.Scraper.ViewModels"
+        xmlns:models="clr-namespace:RetroBat.Scraper.Models"
         mc:Ignorable="d"
         Title="Platform Settings"
         SizeToContent="Manual"
@@ -106,10 +106,24 @@
                       Margin="0,0,0,8"
                       Padding="8,6"/>
 
-            <TextBlock Text="URL" 
-                       Style="{StaticResource SettingsLabel}"/>
-            <TextBox Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
-                     Style="{StaticResource SettingsTextBox}"/>
+            <Grid HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Vertical" Grid.Column="0" Grid.Row="0" Margin="0 0 10 0">
+                    <TextBlock Text="URL" 
+                               Style="{StaticResource SettingsLabel}"/>
+                    <TextBox Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource SettingsTextBox}"/>
+                </StackPanel>
+                <StackPanel Orientation="Vertical" Grid.Column="1" Grid.Row="0">
+                    <TextBlock Text="Extension" 
+                               Style="{StaticResource SettingsLabel}"/>
+                    <TextBox Text="{Binding Extensions, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource SettingsTextBox}"/>
+                </StackPanel>
+            </Grid>
         </StackPanel>
 
         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" 

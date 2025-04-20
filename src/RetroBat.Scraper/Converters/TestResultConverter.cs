@@ -2,7 +2,7 @@
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace RetroBatScraper.Converters;
+namespace RetroBat.Scraper.Converters;
 
 public class TestResultColorConverter : IValueConverter
 {

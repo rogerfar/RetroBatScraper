@@ -1,4 +1,4 @@
-﻿namespace RetroBatScraper.Models;
+﻿namespace RetroBat.Scraper.Models;
 
 public class ScrapeStatus
 {

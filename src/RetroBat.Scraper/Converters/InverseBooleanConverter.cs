@@ -1,7 +1,7 @@
 ﻿using System.Globalization;
 using System.Windows.Data;
 
-namespace RetroBatScraper.Converters;
+namespace RetroBat.Scraper.Converters;
 
 public class InverseBooleanConverter : IValueConverter
 {

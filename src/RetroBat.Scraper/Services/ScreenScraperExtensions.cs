@@ -1,6 +1,6 @@
 ﻿using ScreenScraperFR;
 
-namespace RetroBatScraper.Services;
+namespace RetroBat.Scraper.Services;
 
 public static class ScreenScraperExtensions
 {

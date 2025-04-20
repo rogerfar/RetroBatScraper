@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
 using RetroBat;
-using RetroBatScraper.Models;
+using RetroBat.Scraper.Models;
 
 namespace Retrobat.RomDownloader;
 
@@ -90,7 +90,7 @@ public partial class App
             return 3;
         }
 
-        if (fileInfo.Length < 1024 && fileInfo.Extension == ".zip")
+        if (fileInfo.Length < 1024)
         {
             var contents = File.ReadAllText(fileName);
             contents = contents.Trim();

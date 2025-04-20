@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using RetroBatScraper.Models;
+using RetroBat.Scraper.Models;
 
-namespace RetroBatScraper.Services;
+namespace RetroBat.Scraper.Services;
 
 public class SettingsService(ApplicationDbContext context) 
 {

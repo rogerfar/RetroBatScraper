@@ -1,4 +1,4 @@
-﻿namespace RetroBatScraper.Services;
+﻿namespace RetroBat.Scraper.Services;
 
 public interface ICloseWindow
 {

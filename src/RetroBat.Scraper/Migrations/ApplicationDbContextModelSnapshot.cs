@@ -3,7 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using RetroBatScraper.Services;
+using RetroBat.Scraper.Services;
 
 #nullable disable
 
@@ -17,7 +17,7 @@ namespace RetroBat.Scraper.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.3");
 
-            modelBuilder.Entity("RetroBatScraper.Models.Game", b =>
+            modelBuilder.Entity("RetroBat.Scraper.Models.Game", b =>
                 {
                     b.Property<Guid>("GameId")
                         .ValueGeneratedOnAdd()
@@ -63,7 +63,7 @@ namespace RetroBat.Scraper.Migrations
                     b.ToTable("Games");
                 });
 
-            modelBuilder.Entity("RetroBatScraper.Models.Platform", b =>
+            modelBuilder.Entity("RetroBat.Scraper.Models.Platform", b =>
                 {
                     b.Property<Guid>("PlatformId")
                         .ValueGeneratedOnAdd()
@@ -110,7 +110,7 @@ namespace RetroBat.Scraper.Migrations
                     b.ToTable("Platforms");
                 });
 
-            modelBuilder.Entity("RetroBatScraper.Models.Setting", b =>
+            modelBuilder.Entity("RetroBat.Scraper.Models.Setting", b =>
                 {
                     b.Property<Guid>("SettingId")
                         .ValueGeneratedOnAdd()
@@ -173,9 +173,9 @@ namespace RetroBat.Scraper.Migrations
                         });
                 });
 
-            modelBuilder.Entity("RetroBatScraper.Models.Game", b =>
+            modelBuilder.Entity("RetroBat.Scraper.Models.Game", b =>
                 {
-                    b.HasOne("RetroBatScraper.Models.Platform", "Platform")
+                    b.HasOne("RetroBat.Scraper.Models.Platform", "Platform")
                         .WithMany("Games")
                         .HasForeignKey("PlatformId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -184,7 +184,7 @@ namespace RetroBat.Scraper.Migrations
                     b.Navigation("Platform");
                 });
 
-            modelBuilder.Entity("RetroBatScraper.Models.Platform", b =>
+            modelBuilder.Entity("RetroBat.Scraper.Models.Platform", b =>
                 {
                     b.Navigation("Games");
                 });

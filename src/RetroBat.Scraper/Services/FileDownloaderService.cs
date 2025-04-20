@@ -2,9 +2,9 @@
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Web;
-using RetroBatScraper.Models;
+using RetroBat.Scraper.Models;
 
-namespace RetroBatScraper.Services;
+namespace RetroBat.Scraper.Services;
 
 public class FileDownloaderService
 {
@@ -134,7 +134,7 @@ public class FileDownloaderService
         return games.ToList();
     }
 
-    public async Task DownloadFakeGames(String gameFileName, String url, String path)
+    public async Task DownloadFakeGames(String gameFileName, String url, String path, String extension)
     {
         if (!Directory.Exists(path))
         {
@@ -152,7 +152,9 @@ public class FileDownloaderService
             }
         }
 
-        var destinationFileName = Path.Combine(path, $"{gameFileName}.zip");
+        extension = extension.TrimStart('.');
+
+        var destinationFileName = Path.Combine(path, $"{gameFileName}.{extension}");
 
         if (File.Exists(destinationFileName))
         {

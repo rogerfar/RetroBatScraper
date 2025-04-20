@@ -1,13 +1,14 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
-using RetroBatScraper.Models;
-using RetroBatScraper.Services;
+using RetroBat.Scraper.Models;
+using RetroBat.Scraper.Services;
 
-namespace RetroBatScraper.ViewModels;
+namespace RetroBat.Scraper.ViewModels;
 
 public partial class PlatformSettingsViewModel : ObservableObject
 {
@@ -20,8 +21,8 @@ public partial class PlatformSettingsViewModel : ObservableObject
     private readonly FileDownloaderService _fileDownloaderService;
 
     public ObservableCollection<Platform> AvailablePlatforms { get; }
-    public ObservableCollection<GameViewModel> Games { get; }
-    public ObservableCollection<FilterButton> FilterButtons { get; }
+    public ObservableCollection<GameViewModel> Games { get; } = [];
+    public ObservableCollection<FilterButton> FilterButtons { get; } = [];
     
     [ObservableProperty]
     private String _path;
@@ -87,57 +88,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         _extensions = _platform.Extensions;
         _url = _platform.Url ?? "";
 
-        var games = dbContext.Games.Where(m => m.PlatformId == _platform.PlatformId).ToList();
-        Games = [.. games.Select(game => new GameViewModel(game)).ToList()];
-
-        foreach (var game in Games)
-        {
-            game.IsSelected = game.InitialSelected;
-        }
-        
-        FilterButtons = [];
-
-        var regions = Games.SelectMany(g => g.GameLink?.Regions ?? []).OrderBy(m => m).Distinct().ToList();
-        foreach (var region in regions)
-        {
-            FilterButtons.Add(new()
-            { 
-                Text = region,
-                State = FilterState.Undefined,
-                Type = FilterType.Region
-            });
-        }
-
-        var languages = Games.SelectMany(g => g.GameLink?.Languages ?? []).OrderBy(m => m).Distinct().ToList();
-        foreach (var language in languages)
-        {
-            FilterButtons.Add(new()
-            {
-                Text = language,
-                State = FilterState.Undefined,
-                Type = FilterType.Language
-            });
-        }
-
-        FilterButtons.Add(new()
-        {
-            Text = "Has Tags",
-            State = FilterState.Undefined,
-            Type = FilterType.AllTags
-        });
-
-        var tags = Games.SelectMany(g => g.GameLink?.Tags ?? []).OrderBy(m => m).Distinct().ToList();
-        foreach (var tag in tags)
-        {
-            FilterButtons.Add(new()
-            {
-                Text = tag,
-                State = FilterState.Undefined,
-                Type = FilterType.Tag
-            });
-        }
-
-        UpdateStatusText();
+        UpdateFilterBar();
     }
 
     public void SetWindow(ICloseWindow window)
@@ -169,6 +120,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         _platform.RomType = screenScraperPlatform.RomType;
         _platform.MediaType = screenScraperPlatform.MediaType;
         _platform.Names = screenScraperPlatform.GetAllNames();
+        _platform.Extensions = screenScraperPlatform.Extensions ?? "";
     }
 
     [RelayCommand]
@@ -214,19 +166,28 @@ public partial class PlatformSettingsViewModel : ObservableObject
             Games.Add(new(game));
         }
 
-        UpdateStatusText();
+        UpdateFilterBar();
     }
 
     [RelayCommand]
     private async Task CreateFakeGames()
     {
+        if (String.IsNullOrWhiteSpace(_platform.Extensions))
+        {
+            MessageBox.Show("Please provide an extension");
+
+            return;
+        }
+
+        var extension = _platform.Extensions.Split(',').First();
+
         IsSaving = true;
 
         foreach (var game in Games)
         {
             if (game.IsSelected && game.Url != null)
             {
-                await _fileDownloaderService.DownloadFakeGames(game.FileNameWithoutExtension, game.Url, Path);
+                await _fileDownloaderService.DownloadFakeGames(game.FileNameWithoutExtension, game.Url, Path, extension);
             }
         }
 
@@ -496,6 +457,63 @@ public partial class PlatformSettingsViewModel : ObservableObject
         var selectedCount = Games.Count(g => g.IsSelected);
         var totalCount = Games.Count;
         StatusText = $"Selected games: {selectedCount} / {totalCount}";
+    }
+
+    private void UpdateFilterBar()
+    {
+        Games.Clear();
+
+        var games = _dbContext.Games.Where(m => m.PlatformId == _platform.PlatformId).ToList();
+
+        foreach (var game in games.Select(game => new GameViewModel(game)).ToList())
+        {
+            game.IsSelected = game.InitialSelected;
+            Games.Add(game);
+        }
+
+        FilterButtons.Clear();
+
+        var regions = Games.SelectMany(g => g.GameLink?.Regions ?? []).OrderBy(m => m).Distinct().ToList();
+        foreach (var region in regions)
+        {
+            FilterButtons.Add(new()
+            { 
+                Text = region,
+                State = FilterState.Undefined,
+                Type = FilterType.Region
+            });
+        }
+
+        var languages = Games.SelectMany(g => g.GameLink?.Languages ?? []).OrderBy(m => m).Distinct().ToList();
+        foreach (var language in languages)
+        {
+            FilterButtons.Add(new()
+            {
+                Text = language,
+                State = FilterState.Undefined,
+                Type = FilterType.Language
+            });
+        }
+
+        FilterButtons.Add(new()
+        {
+            Text = "Has Tags",
+            State = FilterState.Undefined,
+            Type = FilterType.AllTags
+        });
+
+        var tags = Games.SelectMany(g => g.GameLink?.Tags ?? []).OrderBy(m => m).Distinct().ToList();
+        foreach (var tag in tags)
+        {
+            FilterButtons.Add(new()
+            {
+                Text = tag,
+                State = FilterState.Undefined,
+                Type = FilterType.Tag
+            });
+        }
+
+        UpdateStatusText();
     }
 }
 

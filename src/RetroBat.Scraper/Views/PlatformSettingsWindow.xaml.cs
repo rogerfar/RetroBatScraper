@@ -1,6 +1,6 @@
-﻿using RetroBatScraper.Services;
+﻿using RetroBat.Scraper.Services;
 
-namespace RetroBatScraper.Views;
+namespace RetroBat.Scraper.Views;
 
 public partial class PlatformSettingsWindow : ICloseWindow
 {

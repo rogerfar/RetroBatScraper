@@ -2,11 +2,11 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using RetroBatScraper.Models;
-using RetroBatScraper.ViewModels;
+using RetroBat.Scraper.Models;
+using RetroBat.Scraper.ViewModels;
 using Serilog;
 
-namespace RetroBatScraper.Services;
+namespace RetroBat.Scraper.Services;
 
 public class ScreenScraperService
 {

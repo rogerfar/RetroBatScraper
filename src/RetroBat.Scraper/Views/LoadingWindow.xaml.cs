@@ -1,6 +1,6 @@
 ﻿using System.Windows;
 
-namespace RetroBatScraper.Views;
+namespace RetroBat.Scraper.Views;
 
 public partial class LoadingWindow : Window
 {

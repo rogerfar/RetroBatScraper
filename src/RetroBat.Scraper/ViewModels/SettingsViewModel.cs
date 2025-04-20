@@ -1,9 +1,9 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using RetroBatScraper.Services;
+using RetroBat.Scraper.Services;
 using ScreenScraperFR;
 
-namespace RetroBatScraper.ViewModels;
+namespace RetroBat.Scraper.ViewModels;
 
 public partial class SettingsViewModel(SettingsService settingsService) : ObservableObject
 {

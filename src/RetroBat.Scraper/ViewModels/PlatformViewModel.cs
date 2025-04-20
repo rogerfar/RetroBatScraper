@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using RetroBatScraper.Models;
+using RetroBat.Scraper.Models;
 
-namespace RetroBatScraper.ViewModels;
+namespace RetroBat.Scraper.ViewModels;
 
 public partial class PlatformViewModel(Platform platform) : ObservableObject
 {

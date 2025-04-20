@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace RetroBatScraper.Models;
+namespace RetroBat.Scraper.Models;
 
 public class Platform
 {

@@ -1,4 +1,4 @@
-﻿namespace RetroBatScraper.Models;
+﻿namespace RetroBat.Scraper.Models;
 
 using System.Xml.Serialization;
 

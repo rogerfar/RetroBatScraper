@@ -1,6 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace RetroBatScraper.ViewModels;
+namespace RetroBat.Scraper.ViewModels;
 
 public partial class FilterButton : ObservableObject
 {

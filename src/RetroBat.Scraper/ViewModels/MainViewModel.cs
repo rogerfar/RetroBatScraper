@@ -2,12 +2,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using RetroBatScraper.Views;
+using RetroBat.Scraper.Views;
 using Microsoft.EntityFrameworkCore;
-using RetroBatScraper.Models;
-using RetroBatScraper.Services;
+using RetroBat.Scraper.Models;
+using RetroBat.Scraper.Services;
 
-namespace RetroBatScraper.ViewModels;
+namespace RetroBat.Scraper.ViewModels;
 
 public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScraperService screenScraperService, ApplicationDbContext dbContext, IDbContextFactory<ApplicationDbContext> dbContextFactory) : ObservableObject
 {
@@ -27,19 +27,9 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
     public async Task Initialize()
     {
-        var platforms = await dbContext.Platforms.OrderBy(p => p.Names[0]).Select(m => new PlatformViewModel(m)
-        {
-            CountTotalGames = m.Games!.Count,
-            CountSelectedGames = m.Games!.Count(g => g.IsSelected),
-            CountScrapePending = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.NotScraped),
-            CountScrapeSuccess = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.Success),
-            CountScrapeError = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.Error),
-            CountScrapeSkipped = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.NotFound),
-        }).ToListAsync();
-
         UserInfo = await screenScraperService.GetLoggedInUser();
 
-        Platforms = [.. platforms.OrderBy(m=>m.Name)];
+        await ReloadPlatforms();
     }
 
     [RelayCommand]
@@ -125,7 +115,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
     }
 
     [RelayCommand]
-    private void AddNewPlatform()
+    private async Task AddNewPlatform()
     {
         var platformSettingsViewModelFactory = serviceProvider.GetRequiredService<PlatformSettingsViewModelFactory>();
         var platformVm = platformSettingsViewModelFactory.Create(null);
@@ -137,11 +127,13 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
         platformVm.SetWindow(window);
 
-        window.Show();
+        window.ShowDialog();
+        
+        await ReloadPlatforms();
     }
 
     [RelayCommand]
-    private void PlatformSelected(PlatformViewModel platformViewModel)
+    private async Task PlatformSelected(PlatformViewModel platformViewModel)
     {
         var platformSettingsViewModelFactory = serviceProvider.GetRequiredService<PlatformSettingsViewModelFactory>();
         var platformVm = platformSettingsViewModelFactory.Create(platformViewModel.PlatformId);
@@ -153,7 +145,24 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
 
         platformVm.SetWindow(window);
 
-        window.Show();
+        window.ShowDialog();
+
+        await ReloadPlatforms();
+    }
+
+    private async Task ReloadPlatforms()
+    {
+        var platforms = await dbContext.Platforms.OrderBy(p => p.Names[0]).Select(m => new PlatformViewModel(m)
+        {
+            CountTotalGames = m.Games!.Count,
+            CountSelectedGames = m.Games!.Count(g => g.IsSelected),
+            CountScrapePending = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.NotScraped),
+            CountScrapeSuccess = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.Success),
+            CountScrapeError = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.Error),
+            CountScrapeSkipped = m.Games!.Count(g => g.IsSelected && g.ScrapeStatus == GameScrapeStatus.NotFound),
+        }).ToListAsync();
+
+        Platforms = [.. platforms.OrderBy(m=>m.Name)];
     }
 }
 

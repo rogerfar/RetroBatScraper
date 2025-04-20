@@ -1,12 +1,12 @@
 ﻿using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using RetroBatScraper.Services;
-using RetroBatScraper.ViewModels;
-using RetroBatScraper.Views;
+using RetroBat.Scraper.Services;
+using RetroBat.Scraper.ViewModels;
+using RetroBat.Scraper.Views;
 using Serilog;
 
-namespace RetroBatScraper;
+namespace RetroBat.Scraper;
 
 public partial class App
 {

@@ -1,10 +1,10 @@
 ﻿using System.IO;
-using RetroBatScraper.Models;
+using RetroBat.Scraper.Models;
 using System.Xml.Serialization;
 using System.Xml;
 using Serilog;
 
-namespace RetroBatScraper.Services;
+namespace RetroBat.Scraper.Services;
 
 public class GameListXmlService
 {
