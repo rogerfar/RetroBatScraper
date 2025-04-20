@@ -12,20 +12,23 @@ public class GameLink
 
     public List<String> Regions { get; set; } = [];
 
-    public Boolean IsAftermarket { get; set; }
+    public Boolean? IsAftermarket { get; set; }
 
-    public Boolean IsBeta { get; set; }
+    public Boolean? IsBeta { get; set; }
 
-    public Boolean IsDemo { get; set; }
+    public Boolean? IsDemo { get; set; }
 
-    public Boolean IsPrototype { get; set; }
+    public Boolean? IsKiosk { get; set; }
 
-    public Boolean IsUnlicensed { get; set; }
+    public Boolean? IsPrototype { get; set; }
+
+    public Boolean? IsTestProgram { get; set; }
+
+    public Boolean? IsUnlicensed { get; set; }
 
     public String? Edition { get; set; }
 
     public DateTime? BuildDate { get; set; }
 
     public List<String> Tags { get; set; } = [];
-
 }

@@ -4,9 +4,11 @@ using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Downloader;
 using Microsoft.EntityFrameworkCore;
 using RetroBat.Scraper.Models;
 using RetroBat.Scraper.Services;
+using SharpCompress.Archives;
 
 namespace RetroBat.Scraper.ViewModels;
 
@@ -99,6 +101,8 @@ public partial class PlatformSettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task FetchMetaData()
     {
+        StatusText = "Fetching metadata...";
+
         if (SelectedPlatform?.ScreenScraperId == null)
         {
             return;
@@ -121,15 +125,23 @@ public partial class PlatformSettingsViewModel : ObservableObject
         _platform.MediaType = screenScraperPlatform.MediaType;
         _platform.Names = screenScraperPlatform.GetAllNames();
         _platform.Extensions = screenScraperPlatform.Extensions ?? "";
+
+        UpdateStatusText();
     }
 
     [RelayCommand]
-    private async Task Update()
+    private async Task DownloadGameList()
     {
+        StatusText = "Downloading game list...";
+
         var gameLinks = await _fileDownloaderService.GetGames(Url);
+
+        StatusText = $"Processing {gameLinks.Count} games...";
 
         foreach (var gameLink in gameLinks)
         {
+            StatusText = $"Processing {gameLink.FileName}...";
+
             var game = await _dbContext.Games.FirstOrDefaultAsync(m => m.PlatformId == _platform.PlatformId && m.FileNameWithExtension == gameLink.FileName);
 
             if (game != null)
@@ -163,6 +175,8 @@ public partial class PlatformSettingsViewModel : ObservableObject
         
         foreach (var game in games)
         {
+            StatusText = $"Adding {game.FileNameWithExtension}...";
+
             Games.Add(new(game));
         }
 
@@ -170,23 +184,127 @@ public partial class PlatformSettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task DetermineExtension()
+    {
+        var selectedGame = Games.FirstOrDefault(g => g.IsSelected && g.Url != null);
+
+        if (selectedGame == null)
+        {
+            MessageBox.Show("Please select a game to determine the extension.");
+            return;
+        }
+
+        IsSaving = true;
+
+        var tempPath = System.IO.Path.Combine(_platform.Path, "tmp");
+
+        if (Directory.Exists(tempPath))
+        {
+            Directory.Delete(tempPath, true);
+        }
+
+        Directory.CreateDirectory(tempPath);
+
+        var fileName = selectedGame.FileName;
+
+        try
+        {
+            Extensions = "";
+
+            StatusText = $"Downloading {fileName}...";
+
+            // Download
+            var destinationPath = System.IO.Path.Combine(tempPath, fileName);
+
+            var downloader = new DownloadService();
+
+            downloader.DownloadProgressChanged += (_, e) =>
+            {
+                StatusText = $"Downloading {fileName}... {(Int32) e.ProgressPercentage}%";
+            };
+
+            await downloader.DownloadFileTaskAsync(selectedGame.Url, destinationPath);
+
+            StatusText = $"Extracting {fileName}...";
+
+            // Unpack
+            using var archive = ArchiveFactory.Open(destinationPath);
+
+            var totalSize = archive.TotalSize;
+
+            archive.CompressedBytesRead += (_, args) =>
+            {
+                var perc = ((Double)args.CompressedBytesRead / totalSize) * 100.0;
+                StatusText = $"Extracting {fileName}... {(Int32) perc}%";
+            };
+
+            foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
+            {
+                entry.WriteToDirectory(tempPath);
+            }
+
+            // Find first file that is not zip
+            var extractedFiles = Directory.GetFiles(tempPath);
+            var firstFile = extractedFiles.FirstOrDefault(file => !file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+            if (firstFile != null)
+            {
+                var extension = System.IO.Path.GetExtension(firstFile);
+                Extensions = extension.Trim('.');
+            }
+            else
+            {
+                MessageBox.Show("No files found in the archive.");
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            if (Directory.Exists(tempPath))
+            {
+                Directory.Delete(tempPath, true);
+            }
+
+            IsSaving = false;
+
+            UpdateStatusText();
+        }
+    }
+
+    [RelayCommand]
     private async Task CreateFakeGames()
     {
-        if (String.IsNullOrWhiteSpace(_platform.Extensions))
+        if (String.IsNullOrWhiteSpace(Extensions))
         {
             MessageBox.Show("Please provide an extension");
 
             return;
         }
 
-        var extension = _platform.Extensions.Split(',').First();
+        var extensions = Extensions.Split(',');
+
+        if (extensions.Length > 1)
+        {
+            MessageBox.Show("Multiple extensions are not supported. Please provide a single extension which matches the file extension of the unzipped file.");
+
+            return;
+        }
+
+        var extension = extensions.First();
 
         IsSaving = true;
+
+        StatusText = "Creating fake games...";
 
         foreach (var game in Games)
         {
             if (game.IsSelected && game.Url != null)
             {
+                StatusText = $"Creating fake game for {game.FileNameWithoutExtension}.{extension}...";
+
                 await _fileDownloaderService.DownloadFakeGames(game.FileNameWithoutExtension, game.Url, Path, extension);
             }
         }
@@ -414,18 +532,100 @@ public partial class PlatformSettingsViewModel : ObservableObject
             query = query.Where(g => g.GameLink?.Languages.Any(r => inactiveLanguages.Contains(r)) != true);
         }
 
+        // Handle Aftermarket filters
+        var aftermarketFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Aftermarket);
+        if (aftermarketFilter != null)
+        {
+            query = aftermarketFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsAftermarket == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsAftermarket != true),
+                _ => query
+            };
+        }
+
+        // Handle Beta filters
+        var betaFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Beta);
+        if (betaFilter != null)
+        {
+            query = betaFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsBeta == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsBeta != true),
+                _ => query
+            };
+        }
+
+        // Handle Demo filters
+        var demoFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Demo);
+        if (demoFilter != null)
+        {
+            query = demoFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsDemo == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsDemo != true),
+                _ => query
+            };
+        }
+
+        // Handle Kiosk filters
+        var kioskFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Kiosk);
+        if (kioskFilter != null)
+        {
+            query = kioskFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsKiosk == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsKiosk != true),
+                _ => query
+            };
+        }
+
+        // Handle Prototype filters
+        var prototypeFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Prototype);
+        if (prototypeFilter != null)
+        {
+            query = prototypeFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsPrototype == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsPrototype != true),
+                _ => query
+            };
+        }
+
+        // Handle Test filters
+        var testFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Test);
+        if (testFilter != null)
+        {
+            query = testFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsTestProgram == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsTestProgram != true),
+                _ => query
+            };
+        }
+
+        // Handle Unlicensed filters
+        var unlicensedFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Unlicensed);
+        if (unlicensedFilter != null)
+        {
+            query = unlicensedFilter.State switch
+            {
+                FilterState.Active => query.Where(g => g.GameLink?.IsUnlicensed == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.IsUnlicensed != true),
+                _ => query
+            };
+        }
+
         // Handle AllTags filters
         var allTagsFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.AllTags);
         if (allTagsFilter != null)
         {
-            if (allTagsFilter.State == FilterState.Active)
+            query = allTagsFilter.State switch
             {
-                query = query.Where(g => g.GameLink?.Tags.Count != 0 == true);
-            }
-            else if (allTagsFilter.State == FilterState.Inactive)
-            {
-                query = query.Where(g => g.GameLink?.Tags.Count != 0 != true);
-            }
+                FilterState.Active => query.Where(g => g.GameLink?.Tags.Count != 0 == true),
+                FilterState.Inactive => query.Where(g => g.GameLink?.Tags.Count != 0 != true),
+                _ => query
+            };
         }
 
         // Handle Tag filters
@@ -494,6 +694,55 @@ public partial class PlatformSettingsViewModel : ObservableObject
                 Type = FilterType.Language
             });
         }
+
+        FilterButtons.Add(new()
+        {
+            Text = "Aftermarket",
+            State = FilterState.Undefined,
+            Type = FilterType.Aftermarket
+        });
+
+        FilterButtons.Add(new()
+        {
+            Text = "Beta",
+            State = FilterState.Undefined,
+            Type = FilterType.Beta
+        });
+
+        FilterButtons.Add(new()
+        {
+            Text = "Demo",
+            State = FilterState.Undefined,
+            Type = FilterType.Demo
+        });
+
+        FilterButtons.Add(new()
+        {
+            Text = "Kiosk",
+            State = FilterState.Undefined,
+            Type = FilterType.Kiosk
+        });
+        
+        FilterButtons.Add(new()
+        {
+            Text = "Prototype",
+            State = FilterState.Undefined,
+            Type = FilterType.Prototype
+        });
+
+        FilterButtons.Add(new()
+        {
+            Text = "Test",
+            State = FilterState.Undefined,
+            Type = FilterType.Test
+        });
+
+        FilterButtons.Add(new()
+        {
+            Text = "Unlicensed",
+            State = FilterState.Undefined,
+            Type = FilterType.Unlicensed
+        });
 
         FilterButtons.Add(new()
         {

@@ -5,6 +5,7 @@
     <Application.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <converters:NullableBooleanConverter x:Key="NullableBooleanConverter"/>
         <converters:TestResultColorConverter x:Key="TestResultColorConverter"/>
         <converters:ActiveBorderConverter x:Key="ActiveBorderConverter"/>
         <DropShadowEffect x:Key="DropShadowEffect" ShadowDepth="0" BlurRadius="10" Opacity="0.3"/>

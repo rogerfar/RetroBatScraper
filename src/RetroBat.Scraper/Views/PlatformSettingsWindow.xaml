@@ -193,11 +193,20 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
                     <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="300"/>
-                    <GridViewColumn Header="FileName" DisplayMemberBinding="{Binding FileName}" Width="300"/>
-                    <GridViewColumn Header="Regions" DisplayMemberBinding="{Binding Regions}" Width="150"/>
-                    <GridViewColumn Header="Languages" DisplayMemberBinding="{Binding Languages}" Width="150"/>
+                    <GridViewColumn Header="File" DisplayMemberBinding="{Binding FileName}" Width="100"/>
+                    <GridViewColumn Header="Regions" DisplayMemberBinding="{Binding Regions}" Width="100"/>
+                    <GridViewColumn Header="Languages" DisplayMemberBinding="{Binding Languages}" Width="100"/>
+                    <GridViewColumn Header="Afterm." DisplayMemberBinding="{Binding Aftermarket, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Beta" DisplayMemberBinding="{Binding Beta, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Demo" DisplayMemberBinding="{Binding Demo, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Kiosk" DisplayMemberBinding="{Binding Kiosk, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Proto" DisplayMemberBinding="{Binding Proto, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Test" DisplayMemberBinding="{Binding Test, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Unl" DisplayMemberBinding="{Binding Unl, Converter={StaticResource NullableBooleanConverter}}" Width="50"/>
+                    <GridViewColumn Header="Edition" DisplayMemberBinding="{Binding Edition}" Width="50"/>
+                    <GridViewColumn Header="Date" DisplayMemberBinding="{Binding Date}" Width="75"/>
                     <GridViewColumn Header="Scrape Status" DisplayMemberBinding="{Binding ScrapeStatus}" Width="150"/>
-                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding Tags}" Width="350"/>
+                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding Tags}" Width="200"/>
                 </GridView>
             </ListView.View>
         </ListView>
@@ -211,7 +220,12 @@
                         DockPanel.Dock="Right"
                         HorizontalAlignment="Right">
                 <Button Content="Download Game List" 
-                        Command="{Binding UpdateCommand}"
+                        Command="{Binding DownloadGameListCommand}"
+                        IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBooleanConverter}}"
+                        Style="{StaticResource TestButton}"
+                        Margin="0,0,10,0"/>
+                <Button Content="Determine Extension" 
+                        Command="{Binding DetermineExtensionCommand}"
                         IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBooleanConverter}}"
                         Style="{StaticResource TestButton}"
                         Margin="0,0,10,0"/>

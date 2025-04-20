@@ -20,8 +20,19 @@ public partial class App
     {
         try
         {
+            FileDownloader.Log = Log;
             var args = ParseArgsToDictionary(e.Args);
-            var argsString = String.Join(" ", args.Select(m => $"-{m.Key} \"{m.Value}\""));
+            var argsString = String.Join(" ", [.. args.Select(kvp => $"-{kvp.Key} \"{kvp.Value}\"")]);
+
+            if (File.Exists("emulatorLauncher.log"))
+            {
+                File.Delete("emulatorLauncher.log");
+            }
+
+            if (File.Exists("emulatorLauncher_original.log"))
+            {
+                File.Delete("emulatorLauncher_original.log");
+            }
 
             Log(argsString);
 
@@ -92,40 +103,89 @@ public partial class App
 
         if (fileInfo.Length < 1024)
         {
-            var contents = File.ReadAllText(fileName);
-            contents = contents.Trim();
+            var tempFile = fileInfo.FullName + ".tmp";
 
-            if (!contents.StartsWith("http"))
+            if (File.Exists(tempFile))
             {
-                Log($"Rom does not contain a valid URL");
-
-                return 0;
+                File.Delete(tempFile);
             }
-
-            var downloadWindow = new Download();
-
-            var fileDownloader = new FileDownloader();
-            fileDownloader.ProgressChanged += downloadWindow.FileDownloaderProgressChanged;
-
-            Log($"Downloading rom file from {contents} to {fileName}");
-
-            downloadWindow.Show();
 
             try
             {
-                await fileDownloader.DownloadFileAsync(contents, fileName);
-            }
-            catch (Exception ex)
-            {
-                Log(ex.Message);
-            }
+                var contents = File.ReadAllText(fileName);
+                contents = contents.Trim();
 
-            downloadWindow.Close();
+                if (!contents.StartsWith("http"))
+                {
+                    Log($"Rom does not contain a valid URL");
 
-            if (!File.Exists(fileName))
+                    return 0;
+                }
+
+                var downloadWindow = new Download();
+
+                var fileDownloader = new FileDownloader();
+                fileDownloader.ProgressChanged += downloadWindow.FileDownloaderProgressChanged;
+
+                Log($"Downloading rom file from {contents} to {tempFile}");
+
+                downloadWindow.Show();
+
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        fileDownloader.DownloadFileAsync(contents, tempFile);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log(ex.Message);
+                }
+
+                if (!File.Exists(tempFile))
+                {
+                    Log($"Downloaded rom file does not exist");
+
+                    return 4;
+                }
+
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        fileDownloader.UnpackFileAsync(tempFile, fileName);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log(ex.Message);
+                }
+
+                downloadWindow.Close();
+
+                if (!File.Exists(fileName))
+                {
+                    Log($"Downloaded rom file does not exist");
+
+                    return 4;
+                }
+
+                fileInfo = new(fileName);
+
+                if (fileInfo.Length < 1024)
+                {
+                    Log($"Downloaded rom file is empty");
+
+                    return 4;
+                }
+            }
+            finally
             {
-                Log($"Downloaded rom file does not exist");
-                return 4;
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
             }
         }
         else
@@ -154,20 +214,27 @@ public partial class App
     private static Dictionary<String, String> ParseArgsToDictionary(String[] args)
     {
         var argsDictionary = new Dictionary<String, String>();
-
-        for (var i = 0; i < args.Length; i+=2)
+        for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (arg.StartsWith("-") && i + 1 < args.Length)
+            if (arg.StartsWith("-"))
             {
-                argsDictionary[args[i].TrimStart('-')] = args[i + 1];
+                var key = arg.TrimStart('-');
+                String value = null;
+
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                {
+                    value = args[++i];
+                }
+
+                argsDictionary[key] = value;
             }
         }
 
         return argsDictionary;
     }
 
-    public XmlGameList GetGamInfo(String filePath)
+    private XmlGameList GetGamInfo(String filePath)
     {
         var settings = new XmlReaderSettings
         {

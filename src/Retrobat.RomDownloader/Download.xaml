@@ -13,7 +13,7 @@
         Topmost="True"
         >
     <StackPanel VerticalAlignment="Center">
-        <Label Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">Downloading...</Label>
+        <Label Name="Task" Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">Downloading</Label>
         <Label Name="Progress" Foreground="AliceBlue" FontSize="50" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"></Label>
         <Label Name="Speed" Foreground="AliceBlue" FontSize="30" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"></Label>
     </StackPanel>

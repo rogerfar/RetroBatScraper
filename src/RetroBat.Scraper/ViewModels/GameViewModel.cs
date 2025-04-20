@@ -18,6 +18,15 @@ public partial class GameViewModel(Game game) : ObservableObject
     public String? Url => GameLink?.Url;
     public String? ScreenScraperData => game.ScreenScraperData;
     public String? GameLinkData => game.GameLinkData;
+    public Boolean? Aftermarket => GameLink?.IsAftermarket;
+    public Boolean? Beta => GameLink?.IsBeta;
+    public Boolean? Demo => GameLink?.IsDemo;
+    public Boolean? Kiosk => GameLink?.IsKiosk;
+    public Boolean? Proto => GameLink?.IsPrototype;
+    public Boolean? Test => GameLink?.IsTestProgram;
+    public Boolean? Unl => GameLink?.IsUnlicensed;
+    public String? Edition => GameLink?.Edition;
+    public DateTime? Date => GameLink?.BuildDate;
 
     public String ScrapeStatus
     {

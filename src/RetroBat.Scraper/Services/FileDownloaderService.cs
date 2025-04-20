@@ -6,7 +6,7 @@ using RetroBat.Scraper.Models;
 
 namespace RetroBat.Scraper.Services;
 
-public class FileDownloaderService
+public partial class FileDownloaderService
 {
     private readonly HttpClient _httpClient;
 
@@ -16,8 +16,20 @@ public class FileDownloaderService
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0");
     }
 
-    private static readonly Regex LinkRegex = new("""<td class="link"><a href="(?<link>.*?)" title="(?<title>.*?)">(?<name>.*?)</a></td>""", RegexOptions.Singleline & RegexOptions.IgnoreCase & RegexOptions.Compiled);
-    private static readonly Regex RegionRegex = new(@"\((?<region>.*?)\)", RegexOptions.IgnoreCase & RegexOptions.Compiled);
+    [GeneratedRegex("""<td class="link"><a href="(?<link>.*?)" title="(?<title>.*?)">(?<name>.*?)</a></td>""", RegexOptions.IgnoreCase)]
+    private static partial Regex LinkRegex();
+
+    [GeneratedRegex(@"\((?<tag>.*?)\)", RegexOptions.IgnoreCase)]
+    private static partial Regex TagRegex();
+
+    [GeneratedRegex(@"(\d{4}-\d{2}-\d{2})", RegexOptions.IgnoreCase)]
+    private static partial Regex DateRegex();
+
+    [GeneratedRegex(@"(v[\d.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex VersionRegex();
+
+    [GeneratedRegex(@"(rev [\d.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex RevisionRegex();
 
     private static readonly Dictionary<String, String> Languages = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -61,7 +73,7 @@ public class FileDownloaderService
 
         url = url.TrimEnd('/');
 
-        var matches = LinkRegex.Matches(page);
+        var matches = LinkRegex().Matches(page);
         var games = new List<GameLink>();
 
         foreach (Match match in matches)
@@ -86,35 +98,81 @@ public class FileDownloaderService
             name = Path.GetFileNameWithoutExtension(name);
 
             // Get the region from the name, often in brackets
-            var regionMatches = RegionRegex.Matches(name);
+            var tagGroupMatches = TagRegex().Matches(name);
 
-            foreach (Match regionMatch in regionMatches)
+            foreach (Match tagGroupMatch in tagGroupMatches)
             {
-                var v = regionMatch.Groups[1].Value;
-                name = name.Replace($"({v})", "");
+                var tagGroup = tagGroupMatch.Groups[1].Value;
+                name = name.Replace($"({tagGroup})", "");
 
-                var contents = v.Split(',');
+                var tags = tagGroup.Split(',');
 
-                foreach (var entry in contents)
+                foreach (var tagDirty in tags)
                 {
-                    var trimmed = entry.Trim();
+                    var tag = tagDirty.Trim();
 
-                    if (Regions.ContainsKey(trimmed))
+                    if (Regions.ContainsKey(tag))
                     {
-                        newGame.Regions.Add(trimmed);
+                        newGame.Regions.Add(tag);
 
-                        if (Regions[trimmed] != "")
+                        if (Regions[tag] != "")
                         {
-                            newGame.Languages.Add(Regions[trimmed]);
+                            newGame.Languages.Add(Regions[tag]);
                         }
                     }
-                    else if (Languages.TryGetValue(trimmed, out var language))
+                    else if (Languages.TryGetValue(tag, out var language))
                     {
                         newGame.Languages.Add(language);
                     }
+                    else if (tag.Contains("aftermarket", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsAftermarket = true;
+                    }
+                    else if (tag.Contains("beta", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsBeta = true;
+                    }
+                    else if (tag.Contains("demo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsDemo = true;
+                    }
+                    else if (tag.Contains("kiosk", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsKiosk = true;
+                    }
+                    else if (tag.Contains("proto", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsPrototype = true;
+                    }
+                    else if (tag.Contains("test", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsTestProgram = true;
+                    }
+                    else if (tag.Contains("unl", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGame.IsUnlicensed = true;
+                    }
                     else
                     {
-                        newGame.Tags.Add(trimmed);
+                        var versionMatch = VersionRegex().Match(tag);
+                        var revisionMatch = RevisionRegex().Match(tag);
+                        var dateMatch = DateRegex().Match(tag);
+                        if (versionMatch.Success)
+                        {
+                            newGame.Edition = versionMatch.Groups[1].Value;
+                        }
+                        else if (revisionMatch.Success)
+                        {
+                            newGame.Edition = revisionMatch.Groups[1].Value;
+                        }
+                        else if (dateMatch.Success && DateTime.TryParse(dateMatch.Groups[1].Value, out var parsedDate))
+                        {
+                            newGame.BuildDate = parsedDate;
+                        }
+                        else
+                        {
+                            newGame.Tags.Add(tag);
+                        }
                     }
                 }
             }

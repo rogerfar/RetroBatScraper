@@ -25,5 +25,12 @@ public enum FilterType
     AllTags,
     Language,
     Region,
-    Tag
+    Tag,
+    Aftermarket,
+    Beta,
+    Demo,
+    Kiosk,
+    Unlicensed,
+    Prototype,
+    Test
 }

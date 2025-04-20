@@ -13,24 +13,48 @@ public partial class Download
     {
         Dispatcher.BeginInvoke((Action)(() =>
         {
+            Task.Content = e.Task;
 
-            Progress.Content = $"{ConvertBytes(e.BytesReceived)} / {ConvertBytes(e.TotalBytes)} ({e.ProgressPercentage:F1}%)";
-            Speed.Content = $"{e.SpeedMbps / 8.0d:N2} MB/s";
+            if (e.Raw != "")
+            {
+                Progress.Content = e.Raw;
+            }
+            else if (e.BytesReceived > 0 && e.TotalBytes > 0)
+            {
+                Progress.Content = $"{FormatBytes(e.BytesReceived)} / {FormatBytes(e.TotalBytes)} ({e.ProgressPercentage:F1}%)";
+            }
+            else
+            {
+                Progress.Content = "";
+            }
+
+            if (e.Speed > 0 && e.Eta != "")
+            {
+                Speed.Content = $"{FormatBytes(e.Speed)}/s ETA: {e.Eta}";
+            }
+            else if (e.Speed > 0)
+            {
+                Speed.Content = $"{FormatBytes(e.Speed)}/s";
+            }
+            else
+            {
+                Speed.Content = "";
+            }
         }));
     }
 
-    private static String ConvertBytes(Int64 bytes)
+    private static String FormatBytes(Int64 bytes)
     {
-        const Int64 kb = 1024;
-        const Int64 mb = kb * 1024;
-        const Int64 gb = mb * 1024;
-
-        return bytes switch
+        String[] sizes = ["B", "KiB", "MiB", "GiB", "TiB"];
+        var order = 0;
+        Double size = bytes;
+            
+        while (size >= 1024 && order < sizes.Length - 1)
         {
-            >= gb => $"{(Double)bytes / gb:F2} GB",
-            >= mb => $"{(Double)bytes / mb:F2} MB",
-            >= kb => $"{(Double)bytes / kb:F2} KB",
-            _ => $"{bytes} bytes"
-        };
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##}{sizes[order]}";
     }
 }
