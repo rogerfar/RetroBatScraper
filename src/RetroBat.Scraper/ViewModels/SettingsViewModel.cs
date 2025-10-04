@@ -112,7 +112,6 @@ public partial class SettingsViewModel(SettingsService settingsService) : Observ
     {
         await settingsService.SaveSettingAsync(new()
         {
-            SettingId = Guid.NewGuid(),
             Key = key,
             Type = "String",
             Value = value

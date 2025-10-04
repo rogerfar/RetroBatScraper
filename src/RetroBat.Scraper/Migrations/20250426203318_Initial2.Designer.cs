@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RetroBat.Scraper.Services;
 
@@ -10,9 +11,11 @@ using RetroBat.Scraper.Services;
 namespace RetroBat.Scraper.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250426203318_Initial2")]
+    partial class Initial2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.4");
@@ -108,7 +111,12 @@ namespace RetroBat.Scraper.Migrations
 
             modelBuilder.Entity("RetroBat.Scraper.Models.Setting", b =>
                 {
+                    b.Property<Guid>("SettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Key")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Type")
@@ -119,7 +127,7 @@ namespace RetroBat.Scraper.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Key");
+                    b.HasKey("SettingId");
 
                     b.HasIndex("Key")
                         .IsUnique();
@@ -129,30 +137,35 @@ namespace RetroBat.Scraper.Migrations
                     b.HasData(
                         new
                         {
+                            SettingId = new Guid("48519a79-6a74-4a66-b10d-38308d21eb1e"),
                             Key = "RetroBatPath",
                             Type = "String",
                             Value = ""
                         },
                         new
                         {
+                            SettingId = new Guid("61d393aa-448c-4bb3-a5e4-4296cf857ab2"),
                             Key = "ScreenScraperDevId",
                             Type = "String",
                             Value = ""
                         },
                         new
                         {
+                            SettingId = new Guid("33d4a35b-f6cc-47c0-88dd-2c5129076442"),
                             Key = "ScreenScraperDevPassword",
                             Type = "String",
                             Value = ""
                         },
                         new
                         {
+                            SettingId = new Guid("397d5efe-cf44-460c-96ad-e8869696719a"),
                             Key = "ScreenScraperUserName",
                             Type = "String",
                             Value = ""
                         },
                         new
                         {
+                            SettingId = new Guid("f5529d7f-4fd4-410d-abeb-4bea86db5ccd"),
                             Key = "ScreenScraperUserPassword",
                             Type = "String",
                             Value = ""

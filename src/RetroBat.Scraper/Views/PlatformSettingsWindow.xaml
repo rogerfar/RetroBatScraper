@@ -148,6 +148,10 @@
                             Command="{Binding DataContext.UniqueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding}"
                             Margin="5,0,5,5" />
+                    <Button Content="Remove Failed"
+                            Command="{Binding DataContext.RemoveFailedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}"
+                            Margin="5,0,5,5" />
                     <ItemsControl ItemsSource="{Binding FilterButtons}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>

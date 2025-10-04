@@ -52,7 +52,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
             {
                 PlatformId = Guid.NewGuid(),
                 Name = "New Platform",
-                Extensions = "",
+                Extension = "",
                 MediaType = "",
                 Path = "",
                 RomType = "",
@@ -77,7 +77,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
             ScreenScraperId = m.Id,
             Name = m.Names.Us ?? m.Names.Eu,
             Names = [],
-            Extensions = m.Extensions ?? "",
+            Extension = m.Extensions ?? "",
             MediaType = m.MediaType,
             Path = "",
             RomType = m.RomType,
@@ -87,7 +87,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
 
         _path = _platform.Path;
         _selectedPlatform = AvailablePlatforms.FirstOrDefault(m => m.ScreenScraperId == _platform.ScreenScraperId);
-        _extensions = _platform.Extensions;
+        _extensions = _platform.Extension;
         _url = _platform.Url ?? "";
 
         UpdateFilterBar();
@@ -124,7 +124,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         _platform.RomType = screenScraperPlatform.RomType;
         _platform.MediaType = screenScraperPlatform.MediaType;
         _platform.Names = screenScraperPlatform.GetAllNames();
-        _platform.Extensions = screenScraperPlatform.Extensions ?? "";
+        _platform.Extension = (screenScraperPlatform.Extensions ?? "").Split(',').FirstOrDefault() ?? "";
 
         UpdateStatusText();
     }
@@ -142,7 +142,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         {
             StatusText = $"Processing {gameLink.FileName}...";
 
-            var game = await _dbContext.Games.FirstOrDefaultAsync(m => m.PlatformId == _platform.PlatformId && m.FileNameWithExtension == gameLink.FileName);
+            var game = await _dbContext.Games.FirstOrDefaultAsync(m => m.PlatformId == _platform.PlatformId && m.FileName == gameLink.FileName);
 
             if (game != null)
             {
@@ -156,8 +156,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
                     ScreenScraperId = null,
                     PlatformId = _platform.PlatformId,
                     Name = gameLink.Name,
-                    FileNameWithExtension = gameLink.FileName,
-                    FileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(gameLink.FileName),
+                    FileName = System.IO.Path.GetFileNameWithoutExtension(gameLink.FileName),
                     ScreenScraperData = null,
                     GameLinkData = JsonSerializer.Serialize(gameLink),
                     ScrapeStatus = GameScrapeStatus.NotScraped,
@@ -175,7 +174,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         
         foreach (var game in games)
         {
-            StatusText = $"Adding {game.FileNameWithExtension}...";
+            StatusText = $"Adding {game.FileName}...";
 
             Games.Add(new(game));
         }
@@ -303,9 +302,9 @@ public partial class PlatformSettingsViewModel : ObservableObject
         {
             if (game.IsSelected && game.Url != null)
             {
-                StatusText = $"Creating fake game for {game.FileNameWithoutExtension}.{extension}...";
+                StatusText = $"Creating fake game for {game.FileName}.{extension}...";
 
-                await _fileDownloaderService.DownloadFakeGames(game.FileNameWithoutExtension, game.Url, Path, extension);
+                await _fileDownloaderService.DownloadFakeGames(game.FileName, game.Url, Path, extension);
             }
         }
 
@@ -350,7 +349,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
                     ScreenScraperId = SelectedPlatform.ScreenScraperId,
                     Path = Path,
                     Name = SelectedPlatform.Name,
-                    Extensions = Extensions,
+                    Extension = Extensions,
                     Company = _platform.Company,
                     Type = _platform.Type,
                     RomType = _platform.RomType,
@@ -368,7 +367,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
                 platform.ScreenScraperId = SelectedPlatform.ScreenScraperId;
                 platform.Path = Path;
                 platform.Name = SelectedPlatform.Name;
-                platform.Extensions = Extensions;
+                platform.Extension = Extensions;
                 platform.Company = _platform.Company;
                 platform.Type = _platform.Type;
                 platform.RomType = _platform.RomType;
@@ -427,7 +426,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
 
         foreach (var game in Games)
         {
-            game.IsSelected = files.Contains(game.FileNameWithoutExtension);
+            game.IsSelected = files.Contains(game.FileName);
         }
 
         UpdateStatusText();
@@ -491,6 +490,22 @@ public partial class PlatformSettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void RemoveFailed()
+    {
+        var query = Games.AsEnumerable();
+
+        foreach (var game in query)
+        {
+            if (game.Game.ScrapeStatus is GameScrapeStatus.Error or GameScrapeStatus.NotFound)
+            {
+                game.IsSelected = false;
+            }
+        }
+
+        UpdateStatusText();
+    }
+
+    [RelayCommand]
     private void ToggleFilter(FilterButton filter)
     {
         // Cycle through states: Undefined -> Active -> Inactive -> Undefined
@@ -498,7 +513,6 @@ public partial class PlatformSettingsViewModel : ObservableObject
         {
             FilterState.Undefined => FilterState.Active,
             FilterState.Active => FilterState.Inactive,
-            FilterState.Inactive => FilterState.Undefined,
             _ => FilterState.Undefined
         };
 
@@ -531,7 +545,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
         {
             query = query.Where(g => g.GameLink?.Languages.Any(r => inactiveLanguages.Contains(r)) != true);
         }
-
+        
         // Handle Aftermarket filters
         var aftermarketFilter = FilterButtons.FirstOrDefault(f => f.Type == FilterType.Aftermarket);
         if (aftermarketFilter != null)
@@ -694,7 +708,7 @@ public partial class PlatformSettingsViewModel : ObservableObject
                 Type = FilterType.Language
             });
         }
-
+        
         FilterButtons.Add(new()
         {
             Text = "Aftermarket",

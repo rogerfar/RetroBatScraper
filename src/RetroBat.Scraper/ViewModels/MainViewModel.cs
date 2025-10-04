@@ -29,6 +29,7 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
     {
         UserInfo = await screenScraperService.GetLoggedInUser();
 
+        await Migrate();
         await ReloadPlatforms();
     }
 
@@ -98,6 +99,22 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
             _cancellationTokenSource = null;
         });
     }
+
+    [RelayCommand]
+    private Task GenerateGamelists()
+    {
+        _ = Task.Run(async () =>
+        {
+            var progress = new Progress<List<ScrapeStatus>>(statuses =>
+            {
+                ScrapeStatuses = [.. statuses];
+            });
+
+            await screenScraperService.GenerateGamelist(progress);
+        });
+
+        return Task.CompletedTask;
+    }
     
     [RelayCommand]
     private async Task OpenSettings()
@@ -148,6 +165,18 @@ public partial class MainViewModel(IServiceProvider serviceProvider, ScreenScrap
         window.ShowDialog();
 
         await ReloadPlatforms();
+    }
+
+    private async Task Migrate()
+    {
+        await using var localDbContext = await dbContextFactory.CreateDbContextAsync();
+
+        var pendingMigrations = await localDbContext.Database.GetPendingMigrationsAsync();
+
+        if (pendingMigrations.Any())
+        {
+            await localDbContext.Database.MigrateAsync();
+        }
     }
 
     private async Task ReloadPlatforms()

@@ -6,6 +6,8 @@ namespace RetroBat.Scraper.ViewModels;
 
 public partial class GameViewModel(Game game) : ObservableObject
 {
+    public Game Game { get; } = game;
+
     public Guid GameId { get; } = game.GameId;
     public Boolean InitialSelected { get; } = game.IsSelected;
 
@@ -13,8 +15,7 @@ public partial class GameViewModel(Game game) : ObservableObject
     private Boolean _isSelected;
 
     public String Name => game.Name;
-    public String FileName => game.FileNameWithExtension;
-    public String FileNameWithoutExtension => game.FileNameWithoutExtension;
+    public String FileName => game.FileName;
     public String? Url => GameLink?.Url;
     public String? ScreenScraperData => game.ScreenScraperData;
     public String? GameLinkData => game.GameLinkData;

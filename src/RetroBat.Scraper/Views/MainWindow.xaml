@@ -42,6 +42,9 @@
                     </Style>
                 </Button.Style>
             </Button>
+            <Separator/>
+            <Button Content="Re-build Gamelists.xml" 
+                    Command="{Binding GenerateGamelistsCommand}"/>
         </ToolBar>
 
         <!-- Main content area -->

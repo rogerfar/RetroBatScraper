@@ -4,8 +4,6 @@ namespace RetroBat.Scraper.Models;
 
 public class Setting
 {
-    public Guid SettingId { get; set; }
-
     public required String Key { get; set; }
 
     public required String Type { get; set; }
@@ -14,9 +12,7 @@ public class Setting
 
     public static void Configure(EntityTypeBuilder<Setting> entity)
     {
-        entity.HasKey(m => m.SettingId);
-
-        entity.Property(m => m.Key).IsRequired();
+        entity.HasKey(m => m.Key);
 
         entity.Property(m => m.Type).IsRequired();
 
@@ -26,35 +22,30 @@ public class Setting
 
         entity.HasData(new Setting
                        {
-                           SettingId = Guid.NewGuid(),
                            Key = "RetroBatPath",
                            Type = "String",
                            Value = ""
                        },
                        new Setting
                        {
-                           SettingId = Guid.NewGuid(),
                            Key = "ScreenScraperDevId",
                            Type = "String",
                            Value = ""
                        },
                        new Setting
                        {
-                           SettingId = Guid.NewGuid(),
                            Key = "ScreenScraperDevPassword",
                            Type = "String",
                            Value = ""
                        },
                        new Setting
                        {
-                           SettingId = Guid.NewGuid(),
                            Key = "ScreenScraperUserName",
                            Type = "String",
                            Value = ""
                        },
                        new Setting
                        {
-                           SettingId = Guid.NewGuid(),
                            Key = "ScreenScraperUserPassword",
                            Type = "String",
                            Value = ""

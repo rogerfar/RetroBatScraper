@@ -12,8 +12,8 @@ public class Platform
 
     public required String Name { get; set; }
 
-    public required String Extensions { get; set; }
-
+    public required String Extension { get; set; }
+    
     public String? Company { get; set; }
 
     public String? Type { get; set; }

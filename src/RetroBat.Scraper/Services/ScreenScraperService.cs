@@ -131,9 +131,21 @@ public class ScreenScraperService
 #endif
 
         var tasks = new List<Task>();
-        var statuses = Enumerable.Range(1, maxThreads)
-                                 .Select(i => new ScrapeStatus { ThreadId = i })
-                                 .ToList();
+
+        var statuses = new List<ScrapeStatus>
+        {
+            new()
+            {
+                CurrentGame = "Total Progress",
+                Status = "Starting..."
+            }
+        };
+
+        var threadStatuses = Enumerable.Range(1, maxThreads)
+                                       .Select(i => new ScrapeStatus { ThreadId = i })
+                                       .ToList();
+
+        statuses.AddRange(threadStatuses);
 
         await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -145,11 +157,12 @@ public class ScreenScraperService
             while (!cancellationToken.IsCancellationRequested && _gameQueue.TryPeek(out _))
             {
                 progress.Report(statuses);
+                statuses[0].Status = $"Scraping {_gameQueue.Count} games...";
                 await Task.Delay(10, CancellationToken.None);
             }
         }, cancellationToken);
 
-        for (var i = 0; i < _userInfo!.MaxThreads; i++)
+        for (var i = 0; i < maxThreads; i++)
         {
             var threadId = i + 1;
             var task = Task.Run(async () =>
@@ -187,6 +200,120 @@ public class ScreenScraperService
         await Task.WhenAll(tasks);
 
         progress.Report(statuses);
+    }
+
+    public async Task GenerateGamelist(IProgress<List<ScrapeStatus>> progress)
+    {
+        var statuses = Enumerable.Range(1, 1)
+                                 .Select(i => new ScrapeStatus { ThreadId = i })
+                                 .ToList();
+
+        try
+        {
+            progress.Report(statuses);
+
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync();
+
+            var allPlatforms = await dbContext.Platforms.AsNoTracking().ToListAsync();
+
+            foreach (var platform in allPlatforms)
+            {
+                statuses[0].Status = $"Generating gamelist.xml for {platform.Name}";
+
+                progress.Report(statuses);
+
+                var gameListPath = Path.Combine(platform.Path, "gamelist.xml");
+
+                if (File.Exists(gameListPath))
+                {
+                    File.Delete(gameListPath);
+                }
+
+                await _gameListXmlService.WriteGameListAsync(gameListPath,
+                                                             new()
+                                                             {
+                                                                 Games = []
+                                                             });
+
+                var gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
+
+                var games = await dbContext.Games.AsNoTracking().Where(m => m.PlatformId == platform.PlatformId && m.IsSelected).ToListAsync();
+
+                for (var index = 0; index < games.Count; index++)
+                {
+                    var game = games[index];
+                    await WriteGameList(gameList, game, platform);
+
+                    var percentageDone = (Int32)((index + 1) / (Decimal)games.Count * 100.0m);
+
+                    statuses[0].DownloadProgressPercentage = percentageDone;
+
+                    progress.Report(statuses);
+                }
+
+                gameList.Games = [.. gameList.Games.OrderBy(m => m.Path)];
+
+                statuses[0].Status = $"Writing gamelist.xml for {platform.Name}";
+
+                progress.Report(statuses);
+
+                await _gameListXmlService.WriteGameListAsync(gameListPath, gameList);
+            }
+
+            statuses[0].Status = "Done";
+            statuses[0].DownloadProgressPercentage = 100;
+
+            progress.Report(statuses);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error generating gamelist.xml: {ExMessage}", ex.Message);
+
+            statuses[0].Status = ex.Message;
+
+            progress.Report(statuses);
+        }
+    }
+
+    public async Task Deduplicate(IProgress<List<ScrapeStatus>> progress)
+    {
+        var statuses = Enumerable.Range(1, 1)
+                                 .Select(i => new ScrapeStatus { ThreadId = i })
+                                 .ToList();
+
+        try
+        {
+            progress.Report(statuses);
+
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync();
+
+            var allPlatforms = await dbContext.Platforms.AsNoTracking().ToListAsync();
+
+            foreach (var platform in allPlatforms)
+            {
+                statuses[0].Status = $"De-depulicating games for {platform.Name}";
+                
+                var games = await dbContext.Games.Where(m => m.PlatformId == platform.PlatformId).ToListAsync();
+
+                foreach (var game in games)
+                {
+
+                }
+            }
+
+            statuses[0].Status = "Done";
+            statuses[0].DownloadProgressPercentage = 100;
+
+            progress.Report(statuses);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error de-duplicating: {ExMessage}", ex.Message);
+
+            statuses[0].Status = ex.Message;
+
+            progress.Report(statuses);
+        }
     }
 
     private ScreenScraperFR.ScreenScraperFRClient? GetClient()
@@ -258,7 +385,7 @@ public class ScreenScraperService
                 {
                     status.Status = $"Searching for {game.Name}";
 
-                    var gameResult = await _client.GetGame(game.Platform!.ScreenScraperId!.Value, "rom", game.FileNameWithExtension, cancellationToken: cancellationToken);
+                    var gameResult = await _client.GetGame(game.Platform!.ScreenScraperId!.Value, "rom", game.FileName, cancellationToken: cancellationToken);
 
                     if (gameResult == null)
                     {
@@ -333,6 +460,7 @@ public class ScreenScraperService
                         status.Status = "Not found";
 
                         game.ScrapeStatus = GameScrapeStatus.NotFound;
+                        game.IsSelected = false;
                         await dbContext.SaveChangesAsync(cancellationToken);
 
                         return true;
@@ -341,8 +469,20 @@ public class ScreenScraperService
                     game.ScreenScraperId = gameResult.Id;
                     game.Name = (gameResult.Names.FirstOrDefault(m => m.Region == "ss") ?? gameResult.Names.FirstOrDefault(m => m.Region == "us") ?? gameResult.Names.First()).Text;
                     game.ScreenScraperData = JsonSerializer.Serialize(gameResult);
-
+                    
                     await dbContext.SaveChangesAsync(cancellationToken);
+                }
+
+                if (game.Name.Contains("ZZZ(notgame)"))
+                {
+                    status.Status = "Not a game";
+
+                    game.ScrapeResult = "Not a game";
+                    game.ScrapeStatus = GameScrapeStatus.Error;
+                    game.IsSelected = false;
+                    await dbContext.SaveChangesAsync(cancellationToken);
+
+                    return true;
                 }
             }
 
@@ -387,96 +527,7 @@ public class ScreenScraperService
 
                 status.Status = "Updating gamelist.xml";
 
-                if (game.ScreenScraperData != null)
-                {
-                    var data = JsonSerializer.Deserialize<ScreenScraperFR.Game>(game.ScreenScraperData!)!;
-
-                    var imageFileName = $"./images/{game.FileNameWithoutExtension}-title.png";
-                    var videoFileName = $"./videos/{game.FileNameWithoutExtension}-video.mp4";
-                    var marqueeFileName = $"./images/{game.FileNameWithoutExtension}-marquee.png";
-                    var thumbFileName = $"./images/{game.FileNameWithoutExtension}-thumb.png";
-
-                    if (!File.Exists(Path.Combine(game.Platform!.Path, imageFileName)))
-                    {
-                        imageFileName = null;
-                    }
-
-                    if (!File.Exists(Path.Combine(game.Platform!.Path, videoFileName)))
-                    {
-                        videoFileName = null;
-                    }
-
-                    if (!File.Exists(Path.Combine(game.Platform!.Path, marqueeFileName)))
-                    {
-                        marqueeFileName = null;
-                    }
-
-                    if (!File.Exists(Path.Combine(game.Platform!.Path, thumbFileName)))
-                    {
-                        thumbFileName = null;
-                    }
-
-                    Decimal? rating = data.Rating?.Text != null ? Math.Round(Decimal.Parse(data.Rating.Text) / 20.0m, 2) : null;
-
-                    var romFilePath = Path.Combine(game.Platform!.Path, game.FileNameWithExtension);
-                    
-                    var gameListPath = Path.Combine(game.Platform!.Path, "gamelist.xml");
-
-                    if (!File.Exists(gameListPath))
-                    {
-                        await _gameListXmlService.WriteGameListAsync(gameListPath,
-                                                                     new()
-                                                                     {
-                                                                         Games = []
-                                                                     });
-                    }
-
-                    var gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
-
-                    var xmlPath = $"./{game.FileNameWithExtension}";
-                    var xmlId = game.ScreenScraperId!.Value.ToString();
-
-                    var xmlGame = gameList.Games.FirstOrDefault(m => m.Path == xmlPath || m.Id == xmlId);
-
-                    if (xmlGame == null)
-                    {
-                        xmlGame = new()
-                        {
-                            Id = xmlId
-                        };
-
-                        gameList.Games.Add(xmlGame);
-                    }
-                    
-                    xmlGame.Source = "ScreenScraper.fr";
-                    xmlGame.Path = xmlPath;
-                    xmlGame.Name = game.Name;
-                    xmlGame.Description = data.Synopsis.FirstOrDefault(m => m.Language == "en")?.Text;
-                    xmlGame.Image = imageFileName;
-                    xmlGame.Video = videoFileName;
-                    xmlGame.Marquee = marqueeFileName;
-                    xmlGame.Thumbnail = thumbFileName;
-                    xmlGame.Rating = rating;
-                    xmlGame.ReleaseDate = (data.ReleaseDates.FirstOrDefault(m => m.Region == "us") ?? data.ReleaseDates.FirstOrDefault())?.Text;
-                    xmlGame.Developer = data.Developer?.Name;
-                    xmlGame.Publisher = data.Publisher?.Name;
-                    xmlGame.Genre = data.Genres.FirstOrDefault(m => m.IsPrimary)?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
-                    xmlGame.Family = data.Series.FirstOrDefault()?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
-                    xmlGame.Players = data.PlayerCount?.Text;
-                    xmlGame.Md5 = await CreateMd5(romFilePath);
-                    xmlGame.Language = data.Rom?.Languages?.En.FirstOrDefault();
-                    xmlGame.Region = data.Rom?.Regions?.En.FirstOrDefault();
-
-                    xmlGame.Scrap = new()
-                    {
-                        Name = "ScreenScraper",
-                        Date = $"{DateTime.Now:yyyyMMdd}T{DateTime.Now:HHmmss}"
-                    };
-
-                    gameList.Games = [.. gameList.Games.OrderBy(m => m.Path)];
-
-                    await _gameListXmlService.WriteGameListAsync(gameListPath, gameList);
-                }
+                await WriteGameList(null, game, game.Platform!);
             }
             finally
             {
@@ -494,10 +545,114 @@ public class ScreenScraperService
             var game = await dbContext.Games.FirstAsync(m => m.GameId == gameId, cancellationToken);
             game.ScrapeResult = ex.Message;
             game.ScrapeStatus = GameScrapeStatus.Error;
+            game.IsSelected = false;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         return true;
+    }
+
+    private async Task WriteGameList(XmlGameList? gameList, Game game, Platform platform)
+    {
+        if (game.ScreenScraperData == null)
+        {
+            return;
+        }
+
+        var writeGameList = gameList == null;
+        if (gameList == null)
+        {
+            var gameListPath = Path.Combine(platform.Path, "gamelist.xml");
+
+            if (!File.Exists(gameListPath))
+            {
+                await _gameListXmlService.WriteGameListAsync(gameListPath,
+                                                             new()
+                                                             {
+                                                                 Games = []
+                                                             });
+            }
+
+            gameList = await _gameListXmlService.ReadGameListAsync(gameListPath);
+        }
+
+        var data = JsonSerializer.Deserialize<ScreenScraperFR.Game>(game.ScreenScraperData!)!;
+
+        var imageFileName = $"./images/{game.FileName}-title.png";
+        var videoFileName = $"./videos/{game.FileName}-video.mp4";
+        var marqueeFileName = $"./images/{game.FileName}-marquee.png";
+        var thumbFileName = $"./images/{game.FileName}-thumb.png";
+
+        if (!File.Exists(Path.Combine(platform.Path, imageFileName)))
+        {
+            imageFileName = null;
+        }
+
+        if (!File.Exists(Path.Combine(platform.Path, videoFileName)))
+        {
+            videoFileName = null;
+        }
+
+        if (!File.Exists(Path.Combine(platform.Path, marqueeFileName)))
+        {
+            marqueeFileName = null;
+        }
+
+        if (!File.Exists(Path.Combine(platform.Path, thumbFileName)))
+        {
+            thumbFileName = null;
+        }
+
+        Decimal? rating = data.Rating?.Text != null ? Math.Round(Decimal.Parse(data.Rating.Text) / 20.0m, 2) : null;
+
+        var xmlPath = $"./{game.FileName}.{platform.Extension}";
+        var xmlId = game.ScreenScraperId!.Value.ToString();
+
+        var xmlGame = gameList.Games.FirstOrDefault(m => m.Path == xmlPath || m.Id == xmlId);
+
+        if (xmlGame == null)
+        {
+            xmlGame = new()
+            {
+                Id = xmlId
+            };
+
+            gameList.Games.Add(xmlGame);
+        }
+
+        xmlGame.Source = "ScreenScraper.fr";
+        xmlGame.Path = xmlPath;
+        xmlGame.Name = game.Name;
+        xmlGame.Description = data.Synopsis.FirstOrDefault(m => m.Language == "en")?.Text;
+        xmlGame.Image = imageFileName;
+        xmlGame.Video = videoFileName;
+        xmlGame.Marquee = marqueeFileName;
+        xmlGame.Thumbnail = thumbFileName;
+        xmlGame.Rating = rating;
+        xmlGame.ReleaseDate = (data.ReleaseDates.FirstOrDefault(m => m.Region == "us") ?? data.ReleaseDates.FirstOrDefault())?.Text;
+        xmlGame.Developer = data.Developer?.Name;
+        xmlGame.Publisher = data.Publisher?.Name;
+        xmlGame.Genre = data.Genres.FirstOrDefault(m => m.IsPrimary)?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
+        xmlGame.Family = data.Series.FirstOrDefault()?.Names.FirstOrDefault(m => m.Language == "en")?.Text;
+        xmlGame.Players = data.PlayerCount?.Text;
+        //xmlGame.Md5 = await CreateMd5(romFilePath);
+        xmlGame.Language = data.Rom?.Languages?.En.FirstOrDefault();
+        xmlGame.Region = data.Rom?.Regions?.En.FirstOrDefault();
+
+        xmlGame.Scrap = new()
+        {
+            Name = "ScreenScraper",
+            Date = $"{DateTime.Now:yyyyMMdd}T{DateTime.Now:HHmmss}"
+        };
+
+        if (writeGameList)
+        {
+            gameList.Games = [.. gameList.Games.OrderBy(m => m.Path)];
+
+            var gameListPath = Path.Combine(platform.Path, "gamelist.xml");
+
+            await _gameListXmlService.WriteGameListAsync(gameListPath, gameList);
+        }
     }
 
     private static async Task GetImage(ScreenScraperFR.ScreenScraperFRClient client, Game game, String fileName, String type, String? fallbackType, EventHandler<ScreenScraperFR.DownloadProgressEventArgs> progressEvent)
@@ -517,7 +672,7 @@ public class ScreenScraperService
             Directory.CreateDirectory(outputPath);
         }
 
-        fileName = $"{game.FileNameWithoutExtension}-{fileName}.png";
+        fileName = $"{game.FileName}-{fileName}.png";
 
         outputPath = Path.Combine(outputPath, fileName);
 
@@ -561,7 +716,7 @@ public class ScreenScraperService
             Directory.CreateDirectory(outputPath);
         }
 
-        fileName = $"{game.FileNameWithoutExtension}-{fileName}.mp4";
+        fileName = $"{game.FileName}-{fileName}.mp4";
 
         outputPath = Path.Combine(outputPath, fileName);
 

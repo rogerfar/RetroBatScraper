@@ -93,8 +93,15 @@ public partial class App
 
         fileName = fileName.Trim('\"');
 
-        var fileInfo = new FileInfo(fileName);
+        var fileAttributes = File.GetAttributes(fileName);
 
+        if ((fileAttributes & FileAttributes.Directory) == FileAttributes.Directory)
+        {
+            return 0;
+        }
+
+        var fileInfo = new FileInfo(fileName);
+        
         if (!fileInfo.Exists)
         {
             Log($"Cannot find rom file {fileName}");
@@ -152,10 +159,24 @@ public partial class App
 
                 try
                 {
-                    await Task.Run(() =>
+                    var extension = Path.GetExtension(fileName);
+
+                    if (extension == ".iso")
                     {
-                        fileDownloader.UnpackFileAsync(tempFile, fileName);
-                    });
+                        if (File.Exists(fileName))
+                        {
+                            File.Delete(fileName);
+                        }
+
+                        File.Move(tempFile, fileName);
+                    }
+                    else
+                    {
+                        await Task.Run(() =>
+                        {
+                            fileDownloader.UnpackFileAsync(tempFile, fileName);
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {

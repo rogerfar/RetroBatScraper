@@ -27,7 +27,7 @@ public partial class PlatformViewModel(Platform platform) : ObservableObject
     public Int32? ScreenScraperId { get; } = platform.ScreenScraperId;
     public String Path { get; } = platform.Path;
     public String Name { get; } = platform.Name;
-    public String Extensions { get; } = platform.Extensions;
+    public String Extension { get; } = platform.Extension;
     public String? Company { get; } = platform.Company;
     public String? Type { get; } = platform.Type;
     public String RomType { get; } = platform.RomType;

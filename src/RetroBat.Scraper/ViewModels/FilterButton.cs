@@ -32,5 +32,6 @@ public enum FilterType
     Kiosk,
     Unlicensed,
     Prototype,
-    Test
+    Test,
+    ScrapeFail
 }

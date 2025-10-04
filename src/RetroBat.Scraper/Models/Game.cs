@@ -16,9 +16,7 @@ public class Game: ObservableObject
 
     public required String Name { get; set; }
 
-    public required String FileNameWithExtension { get; set; }
-
-    public required String FileNameWithoutExtension { get; set; }
+    public required String FileName { get; set; }
 
     public String? ScreenScraperData { get; set; }
 
